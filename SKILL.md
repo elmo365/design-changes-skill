@@ -1,6 +1,6 @@
 ---
 name: design-changes
-description: Mirror a Claude Design project into a repo, hold the design to the structure the skill requires (artboards, board ids, declared devices) and demand fixes from the design side through the claude-design MCP when it falls short, find exactly what changed — which files, which boards, which copy and style, how it looks (Playwright), and which code it affects — keep a generated board↔code map (SCREEN-CODE-MAP.md), and vet a built screen against its board (app screenshot beside the rendered artboard, copy checklist). Use at the start of any design-facing session, whenever the design is said to have moved, before building or ticking a screen against an artboard, after building one (mark it built against its board), and in UI testing to vet screens against the design. First run in a project sets it up through the claude-design MCP.
+description: Mirror a Claude Design project into a repo, hold the design to the structure the skill requires (artboards, board ids, declared devices) and demand fixes from the design side through the claude-design MCP when it falls short, find exactly what changed — which files, which boards, which copy and style, how it looks (Playwright), and which code it affects — keep a generated board↔code map (SCREEN-CODE-MAP.md), and vet a built screen against its board (app screenshot beside the rendered artboard, copy checklist). Standing rules travel with every use — a board is a static mockup, code is fluid at every width (unless the board itself is fluid, then port its fluid rules); board values are placeholders, code shows real data only. Use at the start of any design-facing session, whenever the design is said to have moved, before building or ticking a screen against an artboard, after building one (mark it built against its board), and in UI testing to vet screens against the design. First run in a project sets it up through the claude-design MCP.
 ---
 
 # design-changes — what moved in the design, and what it touches in code
@@ -13,6 +13,26 @@ history, and every resync is committed whole.**
 The design belongs to the project. The skill does not guess around a design it
 cannot read: it **requires** a structure of the design side, checks it on every
 sync, and sends the design side a demand when it is missing.
+
+## Standing rules — every invocation, every screen
+
+These two rules apply to **every** board read, screen built and screen vetted
+through this skill, on every run. They are not context that fades; re-apply
+them each time. The commands repeat them in their own output so they cannot be
+skimmed past.
+
+1. **A board is a static mockup at one width; the implementation is always
+   fluid.** Code must hold the board's structure, spacing rhythm and type
+   scale at **every** width the app can run at — pixel figures are minimums,
+   never fixed sizes, and a layout is never keyed to one window width.
+   *Exception:* when the board itself is built fluid (flex, wrap, minmax
+   inside its frame), do not freeze its rendered width — port the fluid rule
+   itself.
+
+2. **A board's values are placeholders; the implementation's data is real.**
+   Every name, number, price, date and list on a board is sample ink. Code
+   never ports it: each element is wired to live data, or left out until it
+   can be. A hardcoded board value in code is a defect, not a scaffold.
 
 The narrowing runs in layers; Playwright comes last because it brings vision,
 not narrowing:

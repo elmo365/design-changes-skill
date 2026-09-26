@@ -4,6 +4,22 @@ Releases are git tags; `dc version` prints the installed one. Versions follow
 semver: a change to what the skill requires of a design, or to how a config is
 read, is a major version.
 
+## v2.2.0 — 2026-09-26
+
+Standing rules, stamped so they cannot fade from context (owner's ruling,
+2026-09-26): (1) a board is a static mockup at one width — the implementation
+is fluid at every width, unless the board itself is built fluid, then its
+fluid rule is ported, not its rendered width; (2) a board's values are
+placeholders — every value in the implementation comes from real data, wired
+or left out, never ported.
+
+- SKILL.md: a *Standing rules* section at the top, and the two rules in the
+  frontmatter description, so every invocation of the skill re-reads them.
+- Stamped in every command output that leads to building or judging a screen:
+  `dc render` (before a screen is built), the `dc diff` report header,
+  `SCREEN-CODE-MAP.md`, the `dc vet` checklist and its console output —
+  via one shared `standingRules()` (lib/config.mjs).
+
 ## v2.1.1 — 2026-09-26
 
 - Pairing: the user may specify in plain text what each design points to;

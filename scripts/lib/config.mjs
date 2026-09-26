@@ -71,6 +71,14 @@ export const DEFAULTS = {
   node_modules_from: null,
 };
 
+// The two standing rules (SKILL.md, "Standing rules"), stamped into every
+// command's output so they are re-read on every run, never remembered.
+export const STANDING_RULES = [
+  'A board is a static mockup at one width; the implementation is fluid at every width (a board built fluid: port its fluid rule, not its rendered width).',
+  "A board's values are placeholders; every value in the implementation comes from real data — wired or left out, never ported.",
+];
+export const standingRules = (prefix = '⚑ ') => STANDING_RULES.map((r) => `${prefix}${r}`).join('\n');
+
 const argv = process.argv.slice(2);
 export const opt = (name, fallback = null) => {
   const i = argv.indexOf(name);

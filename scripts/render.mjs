@@ -10,7 +10,7 @@
 // Default out: <design_dir>/screenshots/render (keep it gitignored).
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { DESIGN, opt } from './lib/config.mjs';
+import { DESIGN, opt, standingRules } from './lib/config.mjs';
 import { boardTags } from './lib/canvas.mjs';
 import { launch, shoot, scaleFor } from './lib/shoot.mjs';
 
@@ -49,5 +49,6 @@ export default async function run(canvas, ...rest) {
     if (shot) console.log(`${shot.path}  (${shot.w}×${shot.h} CSS px at ${shot.scale}×)`);
     else { console.error(`no artboard labelled "${label}"`); missing += 1; }
   }
+  console.log(standingRules());
   return missing ? 1 : 0;
 }

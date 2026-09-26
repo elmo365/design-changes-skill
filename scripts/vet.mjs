@@ -19,7 +19,7 @@
 // looking: element by element, the board beside what the device drew.
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { CONFIG, DESIGN, opt } from './lib/config.mjs';
+import { CONFIG, DESIGN, opt, standingRules } from './lib/config.mjs';
 import { boards, boardTags, copyLines, boardId } from './lib/canvas.mjs';
 import { launch } from './lib/shoot.mjs';
 import { renderBoards, canvasPath, fileFor } from './render.mjs';
@@ -105,6 +105,8 @@ export default async function run(canvas, label) {
     '',
     'Open the sheet. For every element, a verdict: **same**, **differs** (say how), or **missing**. Copy first, then layout, spacing, type, colour, icons. The board is one width; the app must hold its structure at every width, not its pixels.',
     '',
+    standingRules('> ⚑ '),
+    '',
     '| # | On the board | In the app | Verdict |',
     '|---|---|---|---|',
     ...lines.map((l, i) => `| ${i + 1} | ${l.replace(/\|/g, '\\|')} |  |  |`),
@@ -116,5 +118,6 @@ export default async function run(canvas, label) {
   writeFileSync(mdPath, md);
   console.log(`sheet:     ${sheet}`);
   console.log(`checklist: ${mdPath} (${lines.length} lines of copy${id ? `, board ${id}` : ''})`);
+  console.log(standingRules());
   return 0;
 }

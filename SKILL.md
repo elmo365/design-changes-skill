@@ -351,6 +351,23 @@ comment is enough (`// board 13C · SETTINGS`). The map finds code by id only; a
 label ("Settings") is an ordinary word and is used only for a board that has no
 id yet. A screen citing an id the design no longer has is listed (`orphan_ids`).
 
+## When the design reassigns ids
+
+A reassigned id is the one change the map cannot see: code citing it still
+resolves — to the board that holds the id **now**. Neither the map nor
+`orphan_ids` flags it. After any resync where boards changed id:
+
+1. List every board whose id changed, from the source — the old commit's
+   canvases against the new, by label (the design's own log of reassignments
+   is a claim to check, not the list).
+2. `dc cites <old ids and newly used ids>` — every citing line, `file:line`.
+3. Decide each line by what its code is about (a `13C` in a wallet file is the
+   EFT board; in a safety file it is the board that moved), then edit it. A
+   citation of a board the design **retired** is not renumbered to its
+   successor: the code may still build the retired behaviour — that is a
+   build item, named in the handoff.
+4. Compile, regenerate the map, commit the re-citation on its own.
+
 ## Before building a screen
 
 `dc lint` passes for its board, then `dc render <canvas> "<board label>"` and

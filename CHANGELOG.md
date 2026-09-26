@@ -4,6 +4,16 @@ Releases are git tags; `dc version` prints the installed one. Versions follow
 semver: a change to what the skill requires of a design, or to how a config is
 read, is a major version.
 
+## v3.1.0 — 2026-09-27
+
+- **`dc cites <id>…`** — every code line citing a board id, as `file:line`,
+  matched exactly as the map matches it. Built for the day the design
+  reassigns ids: a citation of an id that moved now points at another board
+  and nothing flags it — not the map, not `orphan_ids` — because the id still
+  exists. On the first real reassignment (58 ids) it listed 548 lines, each
+  then decided by what its code is about. 2 tests (57).
+- SKILL.md: *When the design reassigns ids*.
+
 ## v3.0.2 — 2026-09-27
 
 - v3.0.1 was tagged with `package.json` still at 3.0.0 and the installers

@@ -6,7 +6,8 @@
   "type": "module",
   "bin": { "dc": "scripts/dc.mjs" },
   "scripts": {
-    "postinstall": "playwright install chromium"
+    "postinstall": "playwright install chromium",
+    "test": "node --test"
   },
   "dependencies": {
     "@playwright/test": "^1.55.0",

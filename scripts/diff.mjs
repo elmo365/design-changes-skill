@@ -122,16 +122,17 @@ export function writeMap() {
     const req = Object.entries(kind.require ?? {});
     const forbid = Object.entries(kind.forbid ?? {});
     const passPath = kind.pass_path ? new RegExp(kind.pass_path) : null;
+    const row = (cells) => `| ${cells.join(' | ')} |`;
     sections.push(
       `### ${kind.name ?? kind.path} (${undrawn.length})`, '',
-      `| Screen | ${[...req.map(([k]) => k), ...forbid.map(([k]) => k)].join(' | ')} | Verdict |`,
-      `|---|${[...req, ...forbid].map(() => '---|').join('')}---|`,
+      row(['Screen', ...req.map(([k]) => k), ...forbid.map(([k]) => k), 'Verdict']),
+      row(['Screen', ...req, ...forbid, 'Verdict'].map(() => '---')),
       ...undrawn.map((f) => f.path).sort().map((p) => {
         const t = allCode().find((f) => f.path === p).text;
         const has = req.map(([, re]) => (passPath && passPath.test(p)) || new RegExp(re).test(t));
         const counts = forbid.map(([, re]) => (t.match(new RegExp(re, 'g')) || []).length);
         const ok = has.every(Boolean) && counts.every((n) => !n);
-        return `| \`${p}\` | ${[...has.map((h) => (h ? '✓' : '✗')), ...counts].join(' | ')} | ${ok ? '✓' : '**✗**'} |`;
+        return row([`\`${p}\``, ...has.map((h) => (h ? '✓' : '✗')), ...counts, ok ? '✓' : '**✗**']);
       }),
       '',
     );

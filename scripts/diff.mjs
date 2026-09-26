@@ -31,6 +31,20 @@ const readAt = (ref, path) => {
   try { return git('show', `${ref}:${path}`); } catch { return null; }
 };
 const registry = () => (existsSync(REGISTRY) ? JSON.parse(readFileSync(REGISTRY, 'utf8')) : {});
+
+// Which commit a mark belongs to is read from git, not stored: `dc mark` runs
+// before the build is committed, so HEAD then is the commit before the build.
+// The mark's hash first appears in built-against.json in the commit that
+// carries the build — that is the one named.
+const markCommits = new Map();
+function markedIn(entry) {
+  if (!markCommits.has(entry.hash)) {
+    let c = '';
+    try { c = git('log', '--reverse', '--format=%h', '-S', entry.hash, '--', rel(REGISTRY)).trim().split('\n')[0]; } catch { /* no history */ }
+    markCommits.set(entry.hash, c || (entry.commit ? `${entry.commit} (recorded before the build)` : 'a mark not yet committed'));
+  }
+  return markCommits.get(entry.hash);
+}
 const canvases = () => readdirSync(DESIGN).filter((f) => f.endsWith(CONFIG.canvas_ext)).sort();
 
 // ---- which code cites a board ----------------------------------------------
@@ -81,7 +95,7 @@ export function writeMap() {
       if (id) ids.add(id);
       const files = citing(label, id);
       const built = reg[`${file}::${label}`];
-      const state = built ? (built.hash === sha(block) ? `built against ${built.commit}` : `**changed since ${built.commit}**`) : '';
+      const state = built ? (built.hash === sha(block) ? `built against ${markedIn(built)}` : `**changed since ${markedIn(built)}**`) : '';
       if (!files.length) unbuilt += 1;
       if (built && built.hash !== sha(block)) stale += 1;
       rows.push(`| ${id ?? '—'} | ${label} | ${file.replace(CONFIG.canvas_ext, '')} | ${files.length ? files.slice(0, 4).map((f) => `\`${f}\``).join('<br>') + (files.length > 4 ? `<br>+${files.length - 4} more` : '') : '**nothing cites it**'} | ${state} |`);
@@ -161,9 +175,9 @@ export function markBuilt(mark) {
   const block = existsSync(path) && boards(readFileSync(path, 'utf8')).get(label);
   if (!block) { console.error(`No board "${label}" in ${rel(path)}.`); return 1; }
   const reg = registry();
-  reg[mark] = { hash: sha(block), commit: git('rev-parse', '--short', 'HEAD').trim(), date: new Date().toISOString().slice(0, 10) };
+  reg[mark] = { hash: sha(block), date: new Date().toISOString().slice(0, 10) };
   writeFileSync(REGISTRY, `${JSON.stringify(reg, null, 2)}\n`);
-  console.log(`Marked ${mark} as built against ${reg[mark].hash}.`);
+  console.log(`Marked ${mark} as built against ${reg[mark].hash}. Commit ${rel(REGISTRY)} with the build: that commit is the one the map names.`);
   return 0;
 }
 
@@ -224,7 +238,7 @@ export default async function run() {
       const id = boardId(label, block);
       const files = citing(label, id);
       const built = reg[`${file}::${label}`];
-      const stale = built && built.hash !== sha(block) ? ` · **changed since built against ${built.commit} (${built.date})**` : built ? ' · built against this version' : '';
+      const stale = built && built.hash !== sha(block) ? ` · **changed since built against ${markedIn(built)} (${built.date})**` : built ? ' · built against this version' : '';
       return `  - code${id ? ` (id ${id})` : ''}: ${files.length ? files.slice(0, 8).join(', ') + (files.length > 8 ? ` +${files.length - 8} more` : '') : '**none cites it — unbuilt or uncited**'}${stale}`;
     };
 

@@ -7,7 +7,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const SKILL = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -66,6 +66,26 @@ export const DEFAULTS = {
   // What the app runs on — android, ios, desktop or web. `dc vet` says how to
   // take the app screenshot for it.
   platform: null,
+  // This repo's name, as demands and chats posted to the design project carry
+  // it — several repos may share one project. Default: the root folder's name.
+  repo_name: null,
+  // Several repos, one design project: the canvases THIS repo builds, as globs
+  // on the local canvas name ("kiosk-*.dc.html"). Every other mirrored canvas
+  // is reference — diffed for history, never demanded, marked or counted as
+  // unbuilt here; the repo that owns it does that. Null: this repo owns all.
+  owns: null,
+  // Files allowed in design_dir besides the mirror and the skill's own (globs
+  // on the path under design_dir). Anything else is flagged by `dc lint` as a
+  // foreign file — usually an old doc the next session would follow.
+  keep: [],
+  // How demands reach the design: "post" (a chat in the project) or "write"
+  // (approved attribute writes; structure and naming still posted). Null:
+  // undecided — `dc lint` says to ask the user, in the same turn.
+  demand_mode: null,
+  // How a board with no id gets one: {prefix, start, pad}, e.g.
+  // {"prefix": "K", "start": 1, "pad": 0} → K1, K2… Null: undecided — `dc lint`
+  // says to ask the user the moment a board lacks an id.
+  id_scheme: null,
   // A node_modules to borrow Playwright/pixelmatch/pngjs from, when the
   // skill's own is not installed. Relative to the root.
   node_modules_from: null,
@@ -126,8 +146,29 @@ function pick() {
 }
 export const CONFIG = pick();
 export const DESIGN = join(ROOT, CONFIG.design_dir);
+export const REPO = CONFIG.repo_name ?? basename(ROOT);
 
 export const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+/** A glob on a file name or path: `*` within one segment, `**` across, `?` one char. */
+export const globRe = (g) => new RegExp(`^${g
+  .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+  .replace(/\*\*/g, '\0').replace(/\*/g, '[^/]*').replace(/\0/g, '.*')
+  .replace(/\?/g, '.')}$`);
+/** Does this repo build the boards of this canvas (its local file name)? */
+export const owns = (canvas, cfg = CONFIG) => !cfg.owns || cfg.owns.some((g) => globRe(g).test(basename(canvas)));
+/** A file under design_dir the project allows besides the mirror and the skill's own. */
+export const kept = (path, cfg = CONFIG) => (cfg.keep ?? []).some((g) => globRe(g).test(path.replace(/\\/g, '/')));
+/** The next free ids under the project's id scheme, skipping the ones taken. */
+export function nextIds(scheme, taken, count) {
+  const ids = [];
+  const have = new Set(taken);
+  for (let n = scheme.start ?? 1; ids.length < count; n++) {
+    const id = `${scheme.prefix ?? ''}${String(n).padStart(scheme.pad ?? 0, '0')}`;
+    if (!have.has(id)) { ids.push(id); have.add(id); }
+  }
+  return ids;
+}
 
 /** A project path → its path under design_dir, or null when not mirrored. */
 export function localPath(remote) {

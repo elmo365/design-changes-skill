@@ -19,8 +19,10 @@ const HELP = `design-changes — what moved in the design, and what it touches i
   fetch --listing <l.json> --fix-local
                                strip C2PA from local images
   images [--sheet <out.png>]   changed images: decode, pixel-compare, contact sheet
-  lint [--demand <out.md>] [--measure]
-                               the design against what the skill requires of it
+  lint [--demand <copy.md>] [--measure]
+                               the design against what the skill requires of it;
+                               writes <design_dir>/DEMAND.md (commit it), and
+                               says what to decide before it can be delivered
   diff [--from <ref>] [--to <ref>] [--shots <dir>] [--out <report.md>]
                                boards added/removed/changed, copy, style, pictures, code
   map                          regenerate SCREEN-CODE-MAP.md
@@ -47,10 +49,18 @@ function version() {
   return `design-changes ${v}${at && at !== `v${v}` ? ` (checkout at ${at})` : ''}`;
 }
 
+/** Uncommitted edits in the skill's own checkout — work that dies with the session unless committed, tagged and pushed. */
+function checkoutDirty() {
+  try {
+    return execFileSync('git', ['-C', SKILL, 'status', '--porcelain'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim().length > 0;
+  } catch { return false; }
+}
+
 const GLOBAL = ['--root', '--design', '--project'];
 const [cmd, ...args] = process.argv.slice(2).filter((a, i, all) => !GLOBAL.includes(a) && !GLOBAL.includes(all[i - 1]));
 
 async function main() {
+  if (checkoutDirty()) console.error(`⚠ the skill checkout at ${SKILL} has uncommitted edits — a skill change lives in that repo only: test, bump, CHANGELOG, commit, tag, \`git push origin HEAD:main --tags\` (SKILL.md, "Changing the skill"). Never in a scratchpad.`);
   if (!cmd || cmd === 'help' || cmd === '--help') { console.log(`${version()}\n\n${HELP}`); return 0; }
   if (cmd === 'version' || cmd === '--version') { console.log(version()); return 0; }
   if (cmd === 'init') {

@@ -85,11 +85,37 @@ The rule names are the project's to tune in `design-changes.json`
 (`board_attr`, `device_attr`, `device_widths`, `board_id`, `notes_file`); the
 requirements themselves are not optional.
 
+**Required of the repo side** (lint warns; fixed here, never demanded of the
+design): `design_dir` holds only the mirror and the skill's own files
+(`manifest.json`, `built-against.json`, `SCREEN-CODE-MAP.md`, `DEMAND.md`,
+`screenshots/`). Any other file there is **foreign** — usually an old doc or an
+old scheme the next session would read and follow. Move it out, delete it, or
+list it in `keep` if it truly belongs.
+
 ## Demands — how the skill drives the design
 
-`dc lint --demand <scratch>/demand.md` writes every finding as an instruction,
-per canvas. Each finding has a **kind**, and the kind decides how it reaches
-the design:
+`dc lint` writes every finding on a canvas this repo owns as an instruction,
+per canvas, to **`<design_dir>/DEMAND.md`** — in the repo, committed with the
+sync, removed by lint when nothing is owed. **A demand never lives in a
+scratchpad**: a scratchpad dies with the session and the demand with it.
+(`--demand <path>` writes a copy as well; the file in the repo is the one that
+counts.)
+
+**Two decisions gate delivery, and lint prints `DECIDE NOW` on every run until
+they are made.** Each is asked of the user **in the same turn, as an
+interactive question** — never written into a handoff, a doc or a "needs your
+call":
+
+- `demand_mode` — `"post"` (a chat in the design project; the design side
+  acts) or `"write"` (attribute fixes written to the design after each edit is
+  approved; structure and naming still posted).
+- `id_scheme` — `{"prefix": "K", "start": 1, "pad": 0}` and the like, the
+  moment any board lacks an id. With it set, lint names the exact id each
+  board gets, in the demand and in the console (`→ K7`).
+
+Both are written to `design-changes.json` the moment the user answers; the
+next `dc lint` then delivers cleanly. Each finding has a **kind**, and the
+kind decides how it reaches the design:
 
 **`attribute` — Claude Code writes it to the design itself.** An attribute or
 caption text on an element that already exists: a missing
@@ -115,7 +141,9 @@ canvas is built or what things are called — splitting one element holding
 several screens, unbalanced markup, which label or id a board should have —
 is the design side's call, never rewritten from here.
 
-1. `put_conversation(project_id, title: "design-changes — requirements not met <date>", messages: [{role: "user", content: <demand.md>, timestamp: <now, RFC 3339>}])`.
+1. `put_conversation(project_id, title: "design-changes — <repo_name> — requirements not met <date>", messages: [{role: "user", content: <DEMAND.md>, timestamp: <now, RFC 3339>}])`.
+   The repo's name is in the title and in the demand: several repos may post
+   to one project, and the design side must know which one asks.
 2. This posts a chat in the project's chat panel for whoever works on the
    design. It is **one-way**: Claude Design's own agent does not act on it by
    itself. Tell the user it is posted and that the design side must act on it
@@ -148,8 +176,31 @@ act**, never the agent's guess:
    prints `project: <name> (<id>)` so a wrong pairing is seen, not suffered.
    A first sync has no manifest to scream GONE, so the printed name is the
    only guard there — read it back to the user before fetching.
-4. Re-pairing (the design moved to a new project) is the same procedure; the
-   next `dc compare` will list every file as CHANGED/GONE — expected, say so.
+4. Re-pairing (the design moved to a new project) is the same procedure. The
+   manifest remembers which project it was recorded from: the next
+   `dc compare` opens with `RE-PAIRED` and lists every file as CHANGED/GONE —
+   expected, say so — and `dc record` then retires what described the old
+   project (`built-against.json` set aside as a `.bak`, the map regenerated),
+   so no mark or map from the old design survives into the new.
+
+**One design project, several repos.** A design project often draws more than
+one app — a kiosk and the dashboard it talks to — and each app's repo mirrors
+it. That is the normal shape, and the skill models it rather than flagging
+it. Each repo says which canvases are **its own** with `owns` (globs on the
+local canvas name); every other mirrored canvas is **reference** — a canvas
+this repo's screens link to and must see, but another repo builds. In this
+repo a reference canvas is diffed for history and drawn in the map's own
+section, but it is **never demanded here, never marked here, never counted
+unbuilt here**: lint lists its findings as `ref`, `dc mark` refuses it, and
+the map does not blame this repo for it. `repo_name` (default: the root
+folder's name) goes on every demand and chat so the design side knows which
+repo asks. With `owns` unset, the repo owns everything it mirrors.
+
+```json
+{ "repo_name": "eezze_kiosk",
+  "owns": ["kiosk-*.dc.html"],
+  "keep": ["docs/*.md"] }
+```
 
 **Several designs in one repo.** A repo may pair more than one design project
 — say a UI design and an email design — through the config's `projects` list:
@@ -215,9 +266,13 @@ When the project has no `design-changes.json` at its root:
 
 ### 3. Lint — the design against the requirements
 
-`dc lint --demand <scratch>/demand.md` (add `--measure` when boards were added
-or resized). On failures, deliver the demands (*Demands* above) and tell the
-user which boards are blocked. Continue the sync either way.
+`dc lint` (add `--measure` when boards were added or resized). It writes
+`<design_dir>/DEMAND.md` when anything is owed on a canvas this repo owns,
+and prints `DECIDE NOW` while `demand_mode` or `id_scheme` is unset — **ask
+the user those in this turn** (*Demands* above), write the answers, run lint
+again, then deliver. Tell the user which boards are blocked, and which
+findings are `ref` (another repo's to demand). A `foreign file` warning is
+repo-side: deal with it before the commit. Continue the sync either way.
 
 ### 4. Look at the images (not only their bytes)
 
@@ -247,8 +302,9 @@ checked against the project's `screens` rules. Never edit it by hand.
 
 1. `dc record listing.json`
 2. Commit `design_dir` whole — canvases, support files, images, `manifest.json`,
-   `SCREEN-CODE-MAP.md` — in one commit, with the report's headline. An
-   uncommitted resync loses the only "before" the next diff can have.
+   `SCREEN-CODE-MAP.md`, `DEMAND.md` — in one commit, with the report's
+   headline. An uncommitted resync loses the only "before" the next diff can
+   have; an uncommitted demand is lost with the session.
 3. `dc plan` — when the project has a `plan_doc`, every board must be in it.
 
 ### 8. Act on it
@@ -319,6 +375,11 @@ system — fix it, do not allow-list it.
 | Key | Meaning |
 |---|---|
 | `project_id`, `project_name` | the paired Claude Design project — set by the user's selection (*Pairing*), never by the agent alone |
+| `repo_name` | this repo's name on demands and chats posted to the project (default: the root folder's name) |
+| `owns` | globs on local canvas names this repo builds; the rest is reference — diffed, never demanded, marked or counted unbuilt here (null: all) |
+| `keep` | globs on paths under `design_dir` allowed besides the mirror and the skill's own; anything else is a foreign-file warning |
+| `demand_mode` | `"post"` or `"write"` — how demands reach the design; null: lint says `DECIDE NOW`, ask the user this turn |
+| `id_scheme` | `{prefix, start, pad}` — how a board with no id gets one; lint then proposes the exact id; null: lint says `DECIDE NOW` when a board lacks an id |
 | `projects` | several pairings in one repo: a list of entries, each overriding the top-level keys (own `project_id`, `project_name`, `design_dir`, …); commands then take `--design <dir>` / `--project <name>` |
 | `design_dir` | the mirror, relative to the root (`design`) |
 | `canvas_ext`, `board_attr` | a canvas file and its board attribute (`.dc.html`, `data-screen-label`) |
@@ -351,3 +412,16 @@ Releases are git tags (`vX.Y.Z`, see `CHANGELOG.md`); the installer installs
 one. `dc version` prints the installed release. A project that needs a
 behaviour from an older release pins it by installing that tag
 (`DESIGN_CHANGES_REF`). `FIXES.md` lists what v2.0.0 fixed.
+
+## Changing the skill
+
+The skill's checkout (`$HOME/.claude/skills/design-changes`) **is** its git
+repo. A change to the skill is made there and nowhere else — never drafted in
+a scratchpad, a project repo or a handoff, all of which die with the session
+(v2.1.2 was lost exactly that way). Every `dc` run warns while that checkout
+has uncommitted edits. The sequence, in one sitting:
+
+1. Edit in the checkout; `npm test` green; add a test for the change.
+2. Bump `package.json`, add the `CHANGELOG.md` entry.
+3. Commit, tag `vX.Y.Z`, and — the installer leaves the checkout on a tag,
+   detached — push with `git push origin HEAD:main --tags`.

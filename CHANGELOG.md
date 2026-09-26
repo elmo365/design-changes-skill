@@ -4,6 +4,39 @@ Releases are git tags; `dc version` prints the installed one. Versions follow
 semver: a change to what the skill requires of a design, or to how a config is
 read, is a major version.
 
+## v2.3.0 — 2026-09-26
+
+What the first two real syncs (dashboard, kiosk) showed the skill still let
+happen — each closed in code, not only in the doc.
+
+- **Demands live in the repo.** `dc lint` always writes
+  `<design_dir>/DEMAND.md` when anything is owed (and removes it when nothing
+  is), committed with the sync; `--demand` now only writes a copy. A demand
+  in a scratchpad died with the session — twice.
+- **Decisions are forced, not parked.** New config `demand_mode`
+  (`post` | `write`) and `id_scheme` (`{prefix, start, pad}`); while unset,
+  lint prints `DECIDE NOW … ask the user THIS TURN` on every run. With a
+  scheme set, lint names the exact id each unnamed board gets (`→ K7`), in
+  the console and in the demand.
+- **One design project, several repos.** New config `owns` (globs on local
+  canvas names this repo builds) and `repo_name`. Other mirrored canvases are
+  reference: lint lists their findings as `ref` (never failing, never in this
+  repo's demand), the map draws them in their own section and does not count
+  them unbuilt, `dc diff` labels them, `dc mark` refuses them. Demands and
+  chat titles carry the repo name so the design side knows which repo asks.
+- **Skill edits and re-pairing.** Every `dc` run warns while the skill's own
+  checkout has uncommitted edits (v2.1.2 was lost in a scratchpad). The
+  manifest now records the project it came from: `dc compare` opens with
+  `RE-PAIRED` when the config points elsewhere, and `dc record` sets
+  `built-against.json` aside as a `.bak` and regenerates the map — the lost
+  v2.1.2, remade.
+- **Foreign files.** Lint warns on any file under `design_dir` that is
+  neither mirrored nor the skill's nor in the new `keep` list — an old scheme
+  doc left in place is exactly what the next session would follow.
+- SKILL.md: *Required of the repo side*, *One design project, several repos*,
+  *Changing the skill*; the Demands and sync steps rewritten around DEMAND.md
+  and the two decisions. 9 new tests (46).
+
 ## v2.2.0 — 2026-09-26
 
 Standing rules, stamped so they cannot fade from context (owner's ruling,

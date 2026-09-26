@@ -19,10 +19,9 @@
 // Claude Design keeps no version history of its own, so git is it.
 import { mkdirSync, readFileSync, writeFileSync, rmSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, basename, relative } from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { CONFIG, ROOT, DESIGN, git, pkg, esm, opt, flag, changedPaths } from './lib/config.mjs';
-import { boards, betweenPieces, copyLines, styleChanges, bagMinus, boardId, idPattern, sha, BETWEEN } from './lib/canvas.mjs';
-import { boardSelector } from './render.mjs';
+import { CONFIG, ROOT, DESIGN, git, pkg, esm, opt, changedPaths } from './lib/config.mjs';
+import { boards, boardTags, betweenPieces, copyLines, styleChanges, bagMinus, boardId, idPattern, sha, BETWEEN } from './lib/canvas.mjs';
+import { launch, shoot, scaleFor } from './lib/shoot.mjs';
 
 const REGISTRY = join(DESIGN, 'built-against.json');
 const MAP = join(DESIGN, 'SCREEN-CODE-MAP.md');
@@ -264,35 +263,30 @@ export default async function run() {
   // ---- layer 4: the picture ------------------------------------------------
   if (shots && toRender.length) {
     mkdirSync(shots, { recursive: true });
-    const { chromium } = pkg('@playwright/test');
     const pixelmatch = await esm('pixelmatch');
     const { PNG } = pkg('pngjs');
-    const browser = await chromium.launch();
-    const page = await browser.newPage({ viewport: { width: 1600, height: 1200 }, deviceScaleFactor: 1, reducedMotion: 'reduce' });
-    const snap = async (file, label, dest) => {
-      await page.goto(pathToFileURL(file).href, { waitUntil: 'networkidle' });
-      await page.evaluate(() => document.fonts.ready);
-      await page.waitForTimeout(800);
-      const el = page.locator(boardSelector(label)).first();
-      if (!(await el.count())) return false;
-      await el.scrollIntoViewIfNeeded();
-      await el.screenshot({ path: dest, mask: CONFIG.mask.map((m) => el.locator(m)) });
-      return true;
-    };
+    const browser = await launch();
+    // Old and new at one scale — the new board's device — each in a window
+    // sized to the board (lib/shoot.mjs).
+    const snap = async (file, label, dest, scale) => Boolean((await shoot(browser, file, [{ label, dest }], scale))[label]);
     // Staged beside the canvas so its relative assets still resolve.
     const staged = (text, tag, file) => { const p = join(DESIGN, `.diff-${tag}-${file}`); writeFileSync(p, text); return p; };
     say('## Pictures — only the changed boards');
     for (const item of toRender) {
       const slug = `${basename(item.file, CONFIG.canvas_ext)}--${item.board.replace(/[^A-Za-z0-9-]+/g, '_')}`;
       const newPng = join(shots, `${slug}.new.png`);
-      const newFile = to === null ? join(ROOT, item.path) : staged(readAt(to, item.path), 'new', item.file);
-      await snap(newFile, item.board, newPng);
+      const newText = to === null ? readFileSync(join(ROOT, item.path), 'utf8') : readAt(to, item.path);
+      const scale = scaleFor(boardTags(newText).find((t) => t.label === item.board)?.device);
+      const newFile = to === null ? join(ROOT, item.path) : staged(newText, 'new', item.file);
+      const drawn = await snap(newFile, item.board, newPng, scale);
       if (to !== null) rmSync(newFile);
+      if (!drawn) { say(`- ${item.board}: not drawn — no element carries its label in a browser`); continue; }
       if (!item.old) { say(`- ${item.board}: new board → ${basename(newPng)}`); continue; }
       const oldPng = join(shots, `${slug}.old.png`);
       const oldFile = staged(item.old, 'old', item.file);
-      await snap(oldFile, item.board, oldPng);
+      const drewOld = await snap(oldFile, item.board, oldPng, scale);
       rmSync(oldFile);
+      if (!drewOld) { say(`- ${item.board}: old version not drawn → ${basename(newPng)} only`); continue; }
       const a = PNG.sync.read(readFileSync(oldPng)), b = PNG.sync.read(readFileSync(newPng));
       const w = Math.max(a.width, b.width), h = Math.max(a.height, b.height);
       const pad = (img) => { const p = new PNG({ width: w, height: h }); p.data.fill(255); PNG.bitblt(img, p, 0, 0, img.width, img.height, 0, 0); return p; };

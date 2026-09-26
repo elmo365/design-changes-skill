@@ -27,7 +27,7 @@ export default async function run(canvas, label) {
 
   const block = boards(readFileSync(canvasPath(canvas), 'utf8')).get(label);
   if (!block) { console.error(`No board "${label}" in ${canvas}.`); return 1; }
-  const rendered = (await renderBoards(canvas, [label], out, 2))[label];
+  const rendered = (await renderBoards(canvas, [label], out, 2))[label]?.path;
 
   const { chromium } = pkg('@playwright/test');
   const browser = await chromium.launch();

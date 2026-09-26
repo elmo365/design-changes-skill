@@ -22,6 +22,12 @@ export const DEFAULTS = {
   board_attr: 'data-screen-label',
   // Every board declares the device it draws, on the same element.
   device_attr: 'data-device',
+  // Each device's board width range in CSS px (`dc lint --measure` warns on a
+  // board outside its declared device's range). The keys are the devices a
+  // board may declare.
+  device_widths: { phone: [240, 600], tablet: [600, 1366], desktop: [1024, 100000] },
+  // Pixel scale a board is rendered at, by its device.
+  device_scale: { phone: 2, tablet: 2, desktop: 1, default: 2 },
   // Project path → local path. First match wins; unmatched paths keep their
   // name. `$1` is a group; `{slug:1}` is that group kebab-cased.
   rename: [],

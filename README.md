@@ -8,16 +8,16 @@ against its board.
 
 ## Install (once per machine)
 
-Windows:
+Windows (PowerShell):
 
 ```powershell
-gh repo clone elmo365/design-changes-skill $env:TEMP\dcs; & $env:TEMP\dcs\install.ps1
+irm https://raw.githubusercontent.com/elmo365/design-changes-skill/main/install.ps1 | iex
 ```
 
 macOS / Linux:
 
 ```sh
-gh repo clone elmo365/design-changes-skill /tmp/dcs && sh /tmp/dcs/install.sh
+curl -fsSL https://raw.githubusercontent.com/elmo365/design-changes-skill/main/install.sh | sh
 ```
 
 The installer puts the skill at `~/.claude/skills/design-changes`, installs its

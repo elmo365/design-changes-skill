@@ -99,6 +99,27 @@ export const git = (...args) =>
   execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 256 << 20 });
 export const gitRaw = (...args) => execFileSync('git', args, { cwd: ROOT, maxBuffer: 256 << 20 });
 
+/**
+ * `git status --porcelain -z` output → [{state, path, from}]. With -z no path
+ * is quoted, and a rename or copy is followed by the path it came from.
+ */
+export function parsePorcelainZ(out) {
+  const parts = out.split('\0');
+  const files = [];
+  for (let i = 0; i < parts.length; i++) {
+    const entry = parts[i];
+    if (!entry) continue;
+    const state = entry.slice(0, 2);
+    const from = /[RC]/.test(state) ? parts[++i] : null;
+    files.push({ state: state.trim(), path: entry.slice(3), from });
+  }
+  return files;
+}
+
+/** Every file git sees as changed or new under a path, one per file. */
+export const changedPaths = (path) =>
+  parsePorcelainZ(git('status', '--porcelain', '-z', '--untracked-files=all', '--', path));
+
 function bases() {
   const b = [join(SKILL, 'package.json')];
   if (CONFIG.node_modules_from) b.push(join(ROOT, CONFIG.node_modules_from, 'package.json'));

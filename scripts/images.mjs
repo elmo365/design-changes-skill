@@ -10,13 +10,14 @@
 //   3. a contact sheet of them all is written, to be looked at image by image.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CONFIG, ROOT, git, gitRaw, pkg, opt } from './lib/config.mjs';
+import { CONFIG, ROOT, gitRaw, pkg, opt, changedPaths } from './lib/config.mjs';
 
 export default async function run() {
   const sheetAt = opt('--sheet');
-  const changed = git('status', '--porcelain', '--', CONFIG.design_dir).split('\n')
-    .map((l) => ({ state: l.slice(0, 2).trim(), path: l.slice(3).trim().replace(/^"|"$/g, '') }))
+  const all = changedPaths(CONFIG.design_dir)
     .filter((f) => /\.(png|jpe?g|webp)$/i.test(f.path) && !f.path.includes('/screenshots/'));
+  for (const f of all.filter((x) => x.state.includes('D'))) console.log(`${'deleted'.padEnd(42)}    ${f.path}`);
+  const changed = all.filter((f) => !f.state.includes('D'));
   if (!changed.length) { console.log('No changed images.'); return 0; }
 
   const { chromium } = pkg('@playwright/test');
@@ -29,7 +30,8 @@ export default async function run() {
   for (const f of changed) {
     const now = readFileSync(join(ROOT, f.path)).toString('base64');
     let before = null;
-    if (f.state !== '??') { try { before = gitRaw('show', `HEAD:${f.path}`).toString('base64'); } catch { before = null; } }
+    // A renamed image is compared with the file it was renamed from.
+    if (f.state !== '??' && f.state !== 'A') { try { before = gitRaw('show', `HEAD:${f.from ?? f.path}`).toString('base64'); } catch { before = null; } }
     const r = await page.evaluate(async ({ a, b, type }) => {
       const load = (d) => new Promise((ok) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = `data:${type};base64,${d}`; });
       const ia = await load(a);

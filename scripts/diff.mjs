@@ -20,7 +20,7 @@
 import { mkdirSync, readFileSync, writeFileSync, rmSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, basename, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { CONFIG, ROOT, DESIGN, git, pkg, esm, opt, flag } from './lib/config.mjs';
+import { CONFIG, ROOT, DESIGN, git, pkg, esm, opt, flag, changedPaths } from './lib/config.mjs';
 import { boards, betweenPieces, copyLines, styleChanges, bagMinus, boardId, idPattern, sha, BETWEEN } from './lib/canvas.mjs';
 import { boardSelector } from './render.mjs';
 
@@ -176,14 +176,14 @@ export default async function run() {
   const out = opt('--out');
   const dd = CONFIG.design_dir;
 
-  const changed = (to === null ? git('diff', '--name-only', from, '--', dd) : git('diff', '--name-only', from, to, '--', dd))
-    .split('\n').map((s) => s.trim()).filter(Boolean)
+  // -z everywhere: git quotes a path with unusual characters otherwise.
+  const changed = (to === null ? git('diff', '--name-only', '-z', from, '--', dd) : git('diff', '--name-only', '-z', from, to, '--', dd))
+    .split('\0').filter(Boolean)
     .filter((p) => /\.(html|md|jsx|js|css)$/.test(p) && !p.includes('/screenshots/') && !basename(p).startsWith('.diff-'));
   // New, untracked design files count too when diffing the working tree.
   if (to === null) {
-    for (const l of git('status', '--porcelain', '--untracked-files=all', '--', dd).split('\n')) {
-      const p = l.slice(3).trim();
-      if (l.startsWith('??') && p.endsWith(CONFIG.canvas_ext) && !changed.includes(p)) changed.push(p);
+    for (const f of changedPaths(dd)) {
+      if (f.state === '??' && f.path.endsWith(CONFIG.canvas_ext) && !changed.includes(f.path)) changed.push(f.path);
     }
   }
 

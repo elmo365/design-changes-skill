@@ -1,0 +1,17 @@
+{
+  "name": "design-changes-skill",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Claude Code skill: what moved in a Claude Design project, and what it touches in code.",
+  "type": "module",
+  "bin": { "dc": "scripts/dc.mjs" },
+  "scripts": {
+    "postinstall": "playwright install chromium"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.55.0",
+    "pixelmatch": "^7.1.0",
+    "pngjs": "^7.0.0"
+  },
+  "engines": { "node": ">=20" }
+}

@@ -51,6 +51,9 @@ export const DEFAULTS = {
   screens: [],
   // Code citing an id the design no longer has: { pattern (group 1 numeric), max }.
   orphan_ids: null,
+  // The design side's notes file (in design_dir): what each session changed
+  // and why. `dc lint` warns when a canvas changed and this did not.
+  notes_file: 'NEXT.md',
   // The plan every board must appear in, and an optional stated count in it.
   plan_doc: null,
   plan_count: null,

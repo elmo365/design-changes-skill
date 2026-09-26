@@ -5,7 +5,7 @@
 //
 // Runs against the git work tree of the current directory (or --root), whose
 // `design-changes.json` describes the project. `dc init` writes one.
-import { existsSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { CONFIG_FILE, DEFAULTS, HAS_CONFIG, ROOT } from './lib/config.mjs';
 
 const HELP = `design-changes — what moved in the design, and what it touches in code
@@ -17,6 +17,8 @@ const HELP = `design-changes — what moved in the design, and what it touches i
   fetch --listing <l.json> --fix-local
                                strip C2PA from local images
   images [--sheet <out.png>]   changed images: decode, pixel-compare, contact sheet
+  lint [--demand <out.md>] [--measure]
+                               the design against what the skill requires of it
   diff [--from <ref>] [--to <ref>] [--shots <dir>] [--out <report.md>]
                                boards added/removed/changed, copy, style, pictures, code
   map                          regenerate SCREEN-CODE-MAP.md
@@ -47,6 +49,7 @@ async function main() {
     case 'compare': case 'record': return (await import('./manifest.mjs')).default(cmd, args[0]);
     case 'fetch': return (await import('./fetch.mjs')).default();
     case 'images': return (await import('./images.mjs')).default();
+    case 'lint': return (await import('./lint.mjs')).default();
     case 'diff': return (await import('./diff.mjs')).default();
     case 'map': { const { writeMap } = await import('./diff.mjs'); console.log(writeMap()); return 0; }
     case 'boards': { const { listBoards } = await import('./diff.mjs'); return listBoards(args[0]); }

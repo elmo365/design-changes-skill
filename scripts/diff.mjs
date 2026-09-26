@@ -166,7 +166,8 @@ export function listBoards(canvas) {
   for (const k of cut) console.log(`${boardId(k, found.get(k)) ?? '—'}\t${k}`);
   const lost = raw.filter((l) => !cut.includes(l));
   console.log(`${cut.length} boards cut, ${raw.length} labels in the source${lost.length ? ` — LOST: ${lost.join(', ')}` : ''}`);
-  return lost.length ? 1 : 0;
+  if (!cut.length) console.log(`No artboards: every screen must be one (${CONFIG.board_attr}). \`dc lint\` writes the demand.`);
+  return lost.length || !cut.length ? 1 : 0;
 }
 
 export function markBuilt(mark) {

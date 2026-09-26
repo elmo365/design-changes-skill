@@ -12,16 +12,16 @@ code each change touches, keeps a generated board ↔ code map
 Windows (PowerShell):
 
 ```powershell
-irm https://raw.githubusercontent.com/elmo365/design-changes-skill/v2.1.1/install.ps1 | iex
+irm https://raw.githubusercontent.com/elmo365/design-changes-skill/v3.0.0/install.ps1 | iex
 ```
 
 macOS / Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/elmo365/design-changes-skill/v2.1.1/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/elmo365/design-changes-skill/v3.0.0/install.sh | sh
 ```
 
-The installer puts release **v2.1.1** at `~/.claude/skills/design-changes`,
+The installer puts release **v3.0.0** at `~/.claude/skills/design-changes`,
 installs its own Playwright and Chromium, and registers the `claude-design` MCP
 for your user if it is not there. Pass a project path
 (`install.ps1 -Project <dir>` / `install.sh <dir>`) to write that project's
@@ -44,8 +44,13 @@ file, lints the design, records the manifest and builds the map. After that,
 
 `node ~/.claude/skills/design-changes/scripts/dc.mjs help` —
 `init`, `compare`, `fetch`, `lint`, `images`, `diff`, `map`, `boards`,
-`record`, `plan`, `render`, `vet`, `mark`, `version`. `SKILL.md` is the
-procedure; `FIXES.md` lists what v2 fixed and why.
+`frames`, `record`, `plan`, `render`, `vet`, `mark`, `version`. `SKILL.md` is
+the procedure; `CHANGELOG.md` says what each release changed, and `FIXES.md`
+what v2 fixed and why.
+
+Demands reach the design as a file written into the design project
+(`DEMAND-<repo>.md`); you then tell the design agent, in any chat there,
+*"Read DEMAND-<repo>.md and apply it."*
 
 ## Develop
 

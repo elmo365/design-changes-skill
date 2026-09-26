@@ -5,13 +5,14 @@
 //
 // <canvas> is a path, or a file name under design_dir. Writes
 // <out>/<label>.png, one per artboard, cropped to its board element, at the
-// scale its declared device sets (`device_scale`; --scale overrides it).
+// scale its device sets (`device_scale`; declared, else read from its frame;
+// --scale overrides it).
 // The window is sized to the board (lib/shoot.mjs), never a fixed size.
 // Default out: <design_dir>/screenshots/render (keep it gitignored).
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { DESIGN, opt, standingRules } from './lib/config.mjs';
-import { boardTags } from './lib/canvas.mjs';
+import { devicesOf } from './lib/canvas.mjs';
 import { launch, shoot, scaleFor } from './lib/shoot.mjs';
 
 export const canvasPath = (c) => (existsSync(resolve(c)) ? resolve(c) : join(DESIGN, c));
@@ -21,10 +22,10 @@ export const fileFor = (label) => `${label.replace(/[^A-Za-z0-9-]+/g, '_')}.png`
 export async function renderBoards(canvas, labels, out, scaleOverride = null) {
   mkdirSync(out, { recursive: true });
   const file = canvasPath(canvas);
-  const device = new Map(boardTags(readFileSync(file, 'utf8')).map((t) => [t.label, t.device]));
+  const device = devicesOf(readFileSync(file, 'utf8'));
   const byScale = new Map();
   for (const label of labels) {
-    const scale = scaleOverride ?? scaleFor(device.get(label));
+    const scale = scaleOverride ?? scaleFor(device.get(label)?.device);
     if (!byScale.has(scale)) byScale.set(scale, []);
     byScale.get(scale).push({ label, dest: join(out, fileFor(label)) });
   }

@@ -20,7 +20,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { CONFIG, DESIGN, opt, standingRules } from './lib/config.mjs';
-import { boards, boardTags, copyLines, boardId } from './lib/canvas.mjs';
+import { boards, devicesOf, copyLines, boardId } from './lib/canvas.mjs';
 import { launch } from './lib/shoot.mjs';
 import { renderBoards, canvasPath, fileFor } from './render.mjs';
 
@@ -66,7 +66,7 @@ export default async function run(canvas, label) {
   const html = readFileSync(canvasPath(canvas), 'utf8');
   const block = boards(html).get(label);
   if (!block) { console.error(`No board "${label}" in ${canvas}.`); return 1; }
-  const device = boardTags(html).find((t) => t.label === label)?.device ?? null;
+  const device = devicesOf(html).get(label)?.device ?? null;
   const board = (await renderBoards(canvas, [label], out))[label];
   if (!board) { console.error(`Board "${label}" did not draw in a browser.`); return 1; }
 

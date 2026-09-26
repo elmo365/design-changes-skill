@@ -9,11 +9,15 @@
 //                            ids unique across the project
 //   3. duplicate label     — labels unique within a canvas
 //   4. unclosed markup     — a board closes before the next board opens
-//   5. no / unknown device — every board declares device_attr, one of
-//                            device_widths' keys
+//   5. no / unknown device — every board says what device it draws: drawn in
+//                            a device frame whose width falls in one of
+//                            device_widths' ranges (a phone frame 380 wide),
+//                            or declaring device_attr, one of its keys. The
+//                            design is a static mockup at one width; the
+//                            code built from it is fluid (standing rule 1).
 // Warns:
-//   5. with --measure: a board whose rendered width is outside its declared
-//      device's range, or whose width follows the window (no fixed frame)
+//   5. with --measure: a board whose rendered width is outside its device's
+//      range, or whose width follows the window (no fixed frame)
 //   6. a canvas changed since HEAD with no change to the notes file
 //   7. a foreign file in design_dir — not mirrored, not the skill's, not in
 //      `keep`: an old doc the next session would follow (repo side, never
@@ -23,20 +27,20 @@
 // listed, never failing here and never in this repo's demand — the repo that
 // builds it demands it.
 //
-// Each finding has a kind, which decides how the demand reaches the design:
-//   attribute — an attribute or caption text on an existing element; Claude
-//               Code can write it to the design itself (write_files), once
-//               the user approves the exact edit;
-//   structure / naming — how the canvas is built or what things are called;
-//               a demand posted to the design project (put_conversation) for
-//               the design side to act on.
-// The demand is ALWAYS written to <design_dir>/DEMAND.md when there is one
-// (and removed when there is none), so it is committed with the sync and
+// Each finding has a kind — attribute (an attribute or caption text on an
+// existing element), structure (how the canvas is built) or naming (what
+// things are called). Every kind reaches the design the same way: the demand
+// is written INTO the design project as a file, DEMAND-<repo>.md, and the
+// design side is told to read and apply it (SKILL.md, "Demands"). A chat
+// posted from here is read-only in Claude Design and unseen by its agent, and
+// a canvas can only be replaced whole, never patched — so neither is a route.
+// The demand is ALWAYS written to <design_dir>/DEMAND.md as well when there is
+// one (and removed when there is none), so it is committed with the sync and
 // never lives in a scratchpad. --demand <path> writes a copy as well.
 import { readFileSync, readdirSync, writeFileSync, existsSync, statSync, unlinkSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { CONFIG, DESIGN, REPO, opt, flag, changedPaths, owns, kept, nextIds } from './lib/config.mjs';
-import { boards, boardTags, boardId, BETWEEN } from './lib/canvas.mjs';
+import { boards, boardTags, boardId, devicesOf, BETWEEN } from './lib/canvas.mjs';
 import { launch, measure } from './lib/shoot.mjs';
 
 const devices = () => Object.keys(CONFIG.device_widths);
@@ -51,7 +55,7 @@ export function lintCanvas(canvas, html) {
   const tags = boardTags(html);
   if (!tags.length) {
     add(null, 'no artboards', 'attribute',
-      `Make every screen in this canvas an artboard: on each screen's outermost element set ${CONFIG.board_attr}="<screen name>" and ${CONFIG.device_attr}="<${devices().join('|')}>", and lead its caption with its id ("<id> · <SCREEN NAME>"). A canvas holding several screens in one element is split into one element per screen.`);
+      `Make every screen in this canvas an artboard: on each screen's outermost element set ${CONFIG.board_attr}="<screen name>", draw it in its device frame (or set ${CONFIG.device_attr}="<${devices().join('|')}>"), and lead its caption with its id ("<id> · <SCREEN NAME>"). A canvas holding several screens in one element is split into one element per screen.`);
     return found;
   }
   const count = new Map();
@@ -60,6 +64,7 @@ export function lintCanvas(canvas, html) {
     if (n > 1) add(label, 'duplicate label', 'naming', `${n} boards are labelled "${label}". Give each its own label; keep labels stable once code cites them.`);
   }
   const cut = boards(html);
+  const device = devicesOf(html);
   for (const t of tags) {
     if (count.get(t.label) > 1 && tags.find((x) => x.label === t.label) !== t) continue;
     const block = cut.get(t.label) ?? '';
@@ -69,8 +74,11 @@ export function lintCanvas(canvas, html) {
     if (CONFIG.board_id && !boardId(t.label, block)) {
       add(t.label, 'no board id', 'attribute', `Lead this board's caption (or its label) with its id: "<id> · ${t.label.toUpperCase()}". An id has at least one digit and is unique in the project.`);
     }
-    if (!t.device) add(t.label, 'no device', 'attribute', `Add ${CONFIG.device_attr}="<${devices().join('|')}>" to this board's element.`);
-    else if (!devices().includes(t.device)) add(t.label, `unknown device "${t.device}"`, 'attribute', `Declare one of: ${devices().join(', ')}.`);
+    if (t.device) {
+      if (!devices().includes(t.device)) add(t.label, `unknown device "${t.device}"`, 'attribute', `Declare one of: ${devices().join(', ')}.`);
+    } else if (!device.get(t.label)?.device) {
+      add(t.label, 'no device', 'attribute', `Nothing says what device this board draws: it has no device frame and no ${CONFIG.device_attr}. Draw it in its device's frame, or add ${CONFIG.device_attr}="<${devices().join('|')}>" to this board's element and draw it at that device's width.`);
+    }
   }
   return found;
 }
@@ -115,7 +123,7 @@ async function measured(canvases) {
   const browser = await launch();
   for (const { canvas } of canvases) {
     const file = join(DESIGN, canvas);
-    const device = new Map(boardTags(readFileSync(file, 'utf8')).map((t) => [t.label, t.device]));
+    const device = new Map([...devicesOf(readFileSync(file, 'utf8'))].map(([l, d]) => [l, d.device]));
     const narrow = await measure(browser, file, 1280);
     const wide = new Map((await measure(browser, file, 1920)).map((s) => [s.label, s.w]));
     for (const s of narrow) {
@@ -124,7 +132,7 @@ async function measured(canvases) {
         found.push({ canvas, board: s.label, rule: `frame width follows the window (${s.w} px at 1280, ${wide.get(s.label)} px at 1920)`, level: 'warn', kind: 'structure',
           fix: 'Give the artboard\'s frame a fixed width — the device\'s width. What is inside may be fluid; the frame is one width.' });
       } else if (range && (s.w < range[0] || s.w > range[1])) {
-        found.push({ canvas, board: s.label, rule: `${s.w} px wide, declared ${device.get(s.label)} (${range[0]}–${range[1]} px)`, level: 'warn', kind: 'attribute',
+        found.push({ canvas, board: s.label, rule: `${s.w} px wide, drawn as ${device.get(s.label)} (${range[0]}–${range[1]} px)`, level: 'warn', kind: 'attribute',
           fix: 'Declare the device this board draws, or size the board to its device. (A dialog board may be narrow on purpose: then say so in the notes file.)' });
       }
     }
@@ -184,7 +192,7 @@ export function demandText(findings, date = new Date().toISOString().slice(0, 10
   return [
     `# Design requirements not met — ${repo} — ${date}`,
     '',
-    `The code in \`${repo}\` is built and checked against this design by the design-changes skill. It needs every canvas below to follow the rules; the next sync checks again. Please fix each item.`,
+    `The code in \`${repo}\` is built and checked against this design by the design-changes skill. It needs every canvas below to follow the rules; the next sync checks again. Please fix each item, and change nothing on any board beyond what is listed.`,
     '',
     ...[...byCanvas].flatMap(([canvas, list]) => [
       `## ${canvas}`,
@@ -203,7 +211,7 @@ export function decisions(findings, cfg = CONFIG) {
   const out = [];
   const owed = demandable(findings);
   if (owed.length && !cfg.demand_mode) {
-    out.push('DECIDE NOW  demand_mode is unset in design-changes.json — ask the user THIS TURN (an interactive question, not a note): "post" (a chat in the design project, the design side acts) or "write" (attribute fixes written to the design after each edit is approved; structure and naming still posted). Write the answer to the config, then deliver DEMAND.md. Never park it in a handoff.');
+    out.push(`DECIDE NOW  demand_mode is unset in design-changes.json — ask the user THIS TURN (an interactive question, not a note): "file" (the demand written into the design project as DEMAND-${REPO}.md; the user tells the design agent, in any chat, "Read DEMAND-${REPO}.md and apply it") or "write" (Claude Code writes approved attribute fixes to canvases small enough to send whole; everything else still goes as the file). Write the answer to the config, then deliver. Never park it in a handoff.`);
   }
   if (owed.some((f) => f.rule === 'no board id') && !cfg.id_scheme) {
     out.push('DECIDE NOW  id_scheme is unset and boards have no id — ask the user THIS TURN for the scheme ({"prefix": "K", "start": 1, "pad": 0} → K1, K2…), write it to the config, run lint again: every board then gets its proposed id in the demand.');
@@ -239,7 +247,7 @@ export default async function run() {
   if (owed.length) {
     const text = `${demandText(found)}\n`;
     writeFileSync(demandPath, text);
-    console.log(`demand: ${CONFIG.design_dir}/${DEMAND_FILE} (${owed.length} items) — commit it with the sync; deliver it as demand_mode says${CONFIG.demand_mode ? ` (${CONFIG.demand_mode})` : ''}.`);
+    console.log(`demand: ${CONFIG.design_dir}/${DEMAND_FILE} (${owed.length} items) — commit it with the sync; deliver it into the design project as DEMAND-${REPO}.md (finalize_plan → write_files), then give the user the line to send the design agent: "Read DEMAND-${REPO}.md and apply it."${CONFIG.demand_mode ? ` (demand_mode: ${CONFIG.demand_mode})` : ''}`);
     const copy = opt('--demand');
     if (copy) { writeFileSync(copy, text); console.log(`copy:   ${copy}`); }
   } else if (existsSync(demandPath)) {

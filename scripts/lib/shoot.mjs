@@ -4,8 +4,16 @@
 // No viewport is fixed. A canvas is opened, the boards asked for are
 // measured, and the viewport is set to hold the largest of them, so a desktop
 // board is never clipped and a phone board never squeezed. The pixel scale
-// comes from the board's declared device (`device_scale`).
-import { pathToFileURL } from 'node:url';
+// comes from the board's device (`device_scale`): declared, else its frame.
+//
+// **Canvases are served over HTTP, never opened as file://.** The design
+// runtime fetches what a canvas imports (`<x-import from="./android-frame.jsx">`),
+// and Chromium refuses fetch() on a file:// URL — so the device frame failed
+// to load, the screen spread to whatever width was free, and every render,
+// diff picture and vet sheet showed a frameless board at the wrong width.
+import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { basename, dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { CONFIG, pkg } from './config.mjs';
 
 export const boardSelector = (label) => `[${CONFIG.board_attr}="${label.replace(/"/g, '\\"')}"]`;
@@ -16,11 +24,46 @@ export async function launch() {
   return chromium.launch();
 }
 
+const TYPES = {
+  '.html': 'text/html; charset=utf-8', '.htm': 'text/html; charset=utf-8',
+  '.js': 'text/javascript', '.mjs': 'text/javascript', '.jsx': 'text/javascript', '.css': 'text/css',
+  '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.woff2': 'font/woff2',
+  '.woff': 'font/woff', '.ttf': 'font/ttf', '.otf': 'font/otf',
+};
+const servers = new Map();
+
+/** A static server over one folder, on a free local port; one per folder per process. */
+async function serve(dir) {
+  if (servers.has(dir)) return servers.get(dir);
+  const root = dir.endsWith(sep) ? dir : dir + sep;
+  const server = createServer(async (req, res) => {
+    const path = normalize(join(dir, decodeURIComponent(new URL(req.url, 'http://x').pathname)));
+    if (!path.startsWith(root)) { res.writeHead(403).end(); return; }
+    try {
+      const body = await readFile(path);
+      res.writeHead(200, { 'content-type': TYPES[extname(path).toLowerCase()] ?? 'application/octet-stream' });
+      res.end(body);
+    } catch { res.writeHead(404).end(); }
+  });
+  await new Promise((ok) => server.listen(0, '127.0.0.1', ok));
+  server.unref(); // never keeps the command alive
+  const base = `http://127.0.0.1:${server.address().port}/`;
+  servers.set(dir, base);
+  return base;
+}
+
+/** The URL a canvas file is opened at: its own folder served, so relative imports resolve. */
+export async function urlFor(file) {
+  const abs = resolve(file);
+  return `${await serve(dirname(abs))}${encodeURIComponent(basename(abs))}`;
+}
+
 const MARGIN = 64;
 const MAX_H = 16000;
 
 async function open(page, file) {
-  await page.goto(pathToFileURL(file).href, { waitUntil: 'networkidle' });
+  await page.goto(await urlFor(file), { waitUntil: 'networkidle' });
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(1000);
 }

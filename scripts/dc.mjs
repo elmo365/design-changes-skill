@@ -27,6 +27,7 @@ const HELP = `design-changes — what moved in the design, and what it touches i
                                boards added/removed/changed, copy, style, pictures, code
   map                          regenerate SCREEN-CODE-MAP.md
   boards <canvas>              list a canvas's boards; fail if one is lost
+  frames [<canvas>]            what each board says it is drawn in, from the source
   record <listing.json>        record the sync in manifest.json
   plan                         every board named in the plan doc
   render <canvas> "<label>"…   artboards to PNG
@@ -91,6 +92,7 @@ async function main() {
     case 'diff': return (await import('./diff.mjs')).default();
     case 'map': { const { writeMap } = await import('./diff.mjs'); console.log(writeMap()); return 0; }
     case 'boards': { const { listBoards } = await import('./diff.mjs'); return listBoards(args[0]); }
+    case 'frames': return (await import('./frames.mjs')).default(args[0]);
     case 'mark': { const { markBuilt } = await import('./diff.mjs'); return markBuilt(args[0]); }
     case 'plan': return (await import('./plan.mjs')).default();
     case 'render': return (await import('./render.mjs')).default(...args);

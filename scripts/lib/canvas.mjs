@@ -158,6 +158,60 @@ export function styleChanges(oldB, newB) {
   return lines;
 }
 
+const num1 = (v) => (v == null ? null : +(/-?\d*\.?\d+/.exec(v)?.[0] ?? NaN) || null);
+
+/**
+ * The frame a board says it is drawn in, read from its source — never from a
+ * picture, which shows only what one renderer made of it.
+ *
+ * - `component`: the first imported component given a size — a device frame
+ *   such as `<x-import component-from-global-scope="AndroidDevice" …
+ *   width="{{ 380 }}" height="{{ 760 }}">`;
+ * - `style`: otherwise a fixed `width: <n>px` on the board's own box or its
+ *   first child (a frame drawn as a plain box) — no deeper, where a fixed
+ *   width is a logo or an icon, not the frame;
+ * - `none`: the source states no width — the board is as wide as whatever
+ *   holds it.
+ */
+export function frameOf(block) {
+  for (const m of block.matchAll(/<(x-import|dc-import)\b[^>]*>/g)) {
+    const t = m[0];
+    const name = attrOf(t, 'component-from-global-scope') ?? attrOf(t, 'component') ?? attrOf(t, 'name');
+    const hint = attrOf(t, 'hint-size')?.split(',');
+    const w = num1(attrOf(t, 'width')) ?? num1(hint?.[0]);
+    const h = num1(attrOf(t, 'height')) ?? num1(hint?.[1]);
+    if (w) return { kind: 'component', name, width: w, height: h };
+  }
+  for (const m of [...block.matchAll(/<[a-zA-Z][\w-]*\b[^>]*>/g)].slice(0, 2)) {
+    const w = /(?:^|[;"\s])width:\s*(\d+(?:\.\d+)?)px/.exec(attrOf(m[0], 'style') ?? '');
+    if (w) return { kind: 'style', name: null, width: +w[1], height: null };
+  }
+  return { kind: 'none', name: null, width: null, height: null };
+}
+
+/** The device whose board-width range (`device_widths`) holds a frame's width, or null. */
+export function deviceFor(width, widths = CONFIG.device_widths) {
+  if (!width) return null;
+  return Object.entries(widths).find(([, [lo, hi]]) => width >= lo && width <= hi)?.[0] ?? null;
+}
+
+/**
+ * label → { device, source } for every board: the declared device_attr, else
+ * the device the board's own frame is drawn at (a phone frame 380 wide is a
+ * phone), else null. `source` is 'declared', 'frame' or null.
+ *
+ * A frame decides only what kind of device the mockup draws and the scale its
+ * picture renders at — never a size for code (standing rule 1).
+ */
+export function devicesOf(html, widths = CONFIG.device_widths) {
+  const cut = boards(html);
+  return new Map(boardTags(html).map((t) => {
+    if (t.device) return [t.label, { device: t.device, source: 'declared' }];
+    const d = deviceFor(frameOf(cut.get(t.label) ?? '').width, widths);
+    return [t.label, { device: d, source: d ? 'frame' : null }];
+  }));
+}
+
 /** A board's id, from its label or its caption line ("13C · …"). */
 export function boardId(label, block) {
   if (!ID) return null;

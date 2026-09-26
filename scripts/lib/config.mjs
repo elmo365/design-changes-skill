@@ -24,11 +24,14 @@ export const DEFAULTS = {
   // A canvas: one HTML file of artboards, each an element with this attribute.
   canvas_ext: '.dc.html',
   board_attr: 'data-screen-label',
-  // Every board declares the device it draws, on the same element.
+  // A board says what device it draws by its device frame (an imported
+  // component with a width, such as AndroidDevice 380×760) or by declaring it
+  // on the same element as this attribute; the attribute wins.
   device_attr: 'data-device',
-  // Each device's board width range in CSS px (`dc lint --measure` warns on a
-  // board outside its declared device's range). The keys are the devices a
-  // board may declare.
+  // Each device's board width range in CSS px: a frame's width is read as the
+  // device whose range holds it, and `dc lint --measure` warns on a board
+  // outside its device's range. The keys are the devices a board may declare.
+  // These are the MOCKUP's widths — never sizes for code (standing rule 1).
   device_widths: { phone: [240, 600], tablet: [600, 1366], desktop: [1024, 100000] },
   // Pixel scale a board is rendered at, by its device.
   device_scale: { phone: 2, tablet: 2, desktop: 1, default: 2 },
@@ -78,9 +81,12 @@ export const DEFAULTS = {
   // on the path under design_dir). Anything else is flagged by `dc lint` as a
   // foreign file — usually an old doc the next session would follow.
   keep: [],
-  // How demands reach the design: "post" (a chat in the project) or "write"
-  // (approved attribute writes; structure and naming still posted). Null:
-  // undecided — `dc lint` says to ask the user, in the same turn.
+  // How demands reach the design: "file" (DEMAND-<repo>.md written into the
+  // project; the design agent is told to read and apply it) or "write"
+  // (approved attribute fixes written to canvases small enough to send whole;
+  // the rest still as the file). "post" (a chat) is read as "file": a chat
+  // posted from here is read-only in Claude Design and unseen by its agent.
+  // Null: undecided — `dc lint` says to ask the user, in the same turn.
   demand_mode: null,
   // How a board with no id gets one: {prefix, start, pad}, e.g.
   // {"prefix": "K", "start": 1, "pad": 0} → K1, K2… Null: undecided — `dc lint`

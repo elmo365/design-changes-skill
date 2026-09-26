@@ -22,6 +22,18 @@ test('a board with no id or no device fails', () => {
   assert.deepEqual(rules(lintCanvas('c', '<div data-screen-label="Home"><p>hi</p></div>')), ['Home: no board id', 'Home: no device']);
 });
 
+test('a board drawn in a device frame needs no device attribute', () => {
+  const html = `<div data-screen-label="Home"><x-import component-from-global-scope="AndroidDevice" width="{{ 380 }}" height="{{ 760 }}"><div>x</div></x-import><div>1A · HOME</div></div>`;
+  assert.deepEqual(lintCanvas('c', html), []);
+});
+
+test('a board with no frame and no attribute is told both ways to say its device', () => {
+  const [f] = lintCanvas('c', '<div data-screen-label="Home"><p>1A · HOME</p></div>');
+  assert.equal(f.rule, 'no device');
+  assert.match(f.fix, /device frame/);
+  assert.match(f.fix, /data-device=/);
+});
+
 test('an unknown device fails', () => {
   assert.deepEqual(rules(lintCanvas('c', '<div data-screen-label="Home" data-device="watch"><p>1A · HOME</p></div>')), ['Home: unknown device "watch"']);
 });

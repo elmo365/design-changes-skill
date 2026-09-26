@@ -4,6 +4,48 @@ Releases are git tags; `dc version` prints the installed one. Versions follow
 semver: a change to what the skill requires of a design, or to how a config is
 read, is a major version.
 
+## v3.0.0 — 2026-09-26
+
+What the first real demand against a 206-board design showed: most of what
+was demanded was already there, the pictures were wrong, and the demand never
+reached the design agent.
+
+**Breaking**
+- **A device frame states the device.** Requirement 5 is met by a board drawn
+  in a device frame — an imported component with a width (`AndroidDevice`
+  380×760) — read as the device whose `device_widths` range holds it, or by
+  `data-device` as before (the attribute wins). On the real project 173 of 206
+  boards were framed and had been demanded a `data-device` anyway. One
+  resolver, `devicesOf()`, now decides the device for lint, render, diff and
+  vet. The width is the mockup's: it sets the render scale, never a size for
+  code (standing rule 1).
+- **Demands go as a file in the design project.** `DEMAND-<repo>.md` written
+  through `finalize_plan` → `write_files`, and the user sends the design agent
+  one line: "Read DEMAND-<repo>.md and apply it." A chat posted with
+  `put_conversation` is read-only in Claude Design and unseen by its agent;
+  `write_files` needs a plan token and takes content inline only, so whole
+  large canvases cannot be patched from here. `demand_mode` is now `"file"` or
+  `"write"`; `"post"` is read as `"file"`.
+
+**Fixed**
+- **Renders drew no device frame.** Canvases were opened as `file://`, where
+  Chromium refuses `fetch()`, so the design runtime could not load
+  `./android-frame.jsx`: every render, diff picture and vet sheet showed a
+  frameless screen at whatever width was free (678 px for a 380 px phone
+  board). Canvases are now served from a local HTTP server
+  (`lib/shoot.mjs`, `urlFor`).
+- The installers and README still pinned v2.1.1 through v2.2.0 and v2.3.0; they
+  now name this release.
+
+**Added**
+- `dc frames [<canvas>]` — per board, from the source: the frame it is drawn
+  in, a fixed-width box, or none; with totals and the standing rules.
+- SKILL.md: test a requirement against the design's source before demanding
+  it; the source says what a board is, a render only how it looks;
+  requirement 5 (design, static) and standing rule 1 (code, fluid) do not
+  conflict. *Demands* rewritten around the file route.
+- 8 tests (54): frames, devices, the no-device fix text, the HTTP server.
+
 ## v2.3.0 — 2026-09-26
 
 What the first two real syncs (dashboard, kiosk) showed the skill still let

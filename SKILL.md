@@ -1,6 +1,6 @@
 ---
 name: design-changes
-description: Mirror a Claude Design project into a repo, hold the design to the structure the skill requires (artboards, board ids, declared devices) and demand fixes from the design side through the claude-design MCP when it falls short, find exactly what changed — which files, which boards, which copy and style, how it looks (Playwright), and which code it affects — keep a generated board↔code map (SCREEN-CODE-MAP.md), and vet a built screen against its board (app screenshot beside the rendered artboard, copy checklist). Standing rules travel with every use — a board is a static mockup, code is fluid at every width (unless the board itself is fluid, then port its fluid rules); board values are placeholders, code shows real data only. Use at the start of any design-facing session, whenever the design is said to have moved, before building or ticking a screen against an artboard, after building one (mark it built against its board), and in UI testing to vet screens against the design. First run in a project sets it up through the claude-design MCP.
+description: Mirror a Claude Design project into a repo, hold the design to the structure the skill requires (artboards, board ids, a device per board — its frame or a declared one) and demand fixes from the design side as a file written into the design project through the claude-design MCP when it falls short, find exactly what changed — which files, which boards, which copy and style, how it looks (Playwright), and which code it affects — keep a generated board↔code map (SCREEN-CODE-MAP.md), and vet a built screen against its board (app screenshot beside the rendered artboard, copy checklist). Standing rules travel with every use — a board is a static mockup, code is fluid at every width (unless the board itself is fluid, then port its fluid rules); board values are placeholders, code shows real data only. Use at the start of any design-facing session, whenever the design is said to have moved, before building or ticking a screen against an artboard, after building one (mark it built against its board), and in UI testing to vet screens against the design. First run in a project sets it up through the claude-design MCP.
 ---
 
 # design-changes — what moved in the design, and what it touches in code
@@ -78,12 +78,25 @@ the build work that depends on that board until it is met.
 | 2 | **Every board has an id**: its caption (or label) leads with `<id> · ` (`13C · SETTINGS`); an id has a digit and is unique in the project | Code cites the id; labels are ordinary words | fail |
 | 3 | **Labels are unique in a canvas and stable** — a rename is a new board | A renamed label reads as one board removed and another added | fail |
 | 4 | **Balanced markup; boards never nest** | Otherwise a board is cut at the next board's opening, half read | fail |
-| 5 | **Every board declares its device**: `data-device="phone\|tablet\|desktop"`, and its frame is that device's width (content inside may be fluid) | Rendering scale, vet layout and the width check come from it | fail (missing); warn with `--measure` (width off its device, frame follows the window) |
+| 5 | **Every board says what device it draws**: it is drawn in that device's frame (an imported frame component with a width — `AndroidDevice` 380×760 — is read as the device whose `device_widths` range holds it), or declares `data-device="phone\|tablet\|desktop"` and is drawn at that device's width (content inside may be fluid) | Rendering scale, vet layout and the width check come from it | fail (neither); warn with `--measure` (width off its device, frame follows the window) |
 | 6 | **A notes file** (`NEXT.md`) says what each session changed and why | The intent a file diff cannot show | warn |
 
 The rule names are the project's to tune in `design-changes.json`
 (`board_attr`, `device_attr`, `device_widths`, `board_id`, `notes_file`); the
 requirements themselves are not optional.
+
+**Test a requirement against the design's source before demanding it.** A
+design may already carry what a rule asks for in another form — 173 of one
+project's 206 boards stated their device through the frame they were drawn in,
+and were demanded a `data-device` anyway. `dc frames` prints, per board, the
+frame it is drawn in, from the source. Read the canvas **source** for what a
+board is; a render is a picture of it, made by one browser, and shows only how
+it looks.
+
+Requirement 5 is about the **design**, which is a static mockup at one width;
+standing rule 1 is about the **code**, which is fluid. They do not conflict. A
+frame's width says which kind of device the mockup draws and at what scale its
+picture renders — **never a size for code**.
 
 **Required of the repo side** (lint warns; fixed here, never demanded of the
 design): `design_dir` holds only the mirror and the skill's own files
@@ -106,49 +119,59 @@ they are made.** Each is asked of the user **in the same turn, as an
 interactive question** — never written into a handoff, a doc or a "needs your
 call":
 
-- `demand_mode` — `"post"` (a chat in the design project; the design side
-  acts) or `"write"` (attribute fixes written to the design after each edit is
-  approved; structure and naming still posted).
+- `demand_mode` — `"file"` (the demand written into the design project as a
+  file; the design agent is told to read and apply it) or `"write"` (approved
+  attribute fixes written by Claude Code to canvases small enough to send
+  whole; everything else still as the file). `"post"`, from older configs, is
+  read as `"file"`.
 - `id_scheme` — `{"prefix": "K", "start": 1, "pad": 0}` and the like, the
   moment any board lacks an id. With it set, lint names the exact id each
   board gets, in the demand and in the console (`→ K7`).
 
 Both are written to `design-changes.json` the moment the user answers; the
-next `dc lint` then delivers cleanly. Each finding has a **kind**, and the
-kind decides how it reaches the design:
+next `dc lint` then delivers cleanly.
 
-**`attribute` — Claude Code writes it to the design itself.** An attribute or
-caption text on an element that already exists: a missing
-`data-screen-label` on a single-screen canvas's root, a `data-device`, an id
-put at the front of an existing caption.
+### The route: a file in the design project
 
-1. Render the board (`dc render`) and decide the exact edit — which element,
-   which attribute, which value (the device from the board's real width, the id
-   from the project's id scheme or the next free one).
-2. **Show the user each edit (old → new opening tag or caption) and get a yes.**
-   Nothing is written to the design without it.
-3. `get_claude_design_prompt(project_id)` — required once before any write.
-4. `read_file(project_id, <path>)` for the current bytes and etag. Change only
-   the approved attributes or caption text; every other byte stays.
-5. `write_files(project_id, files: [{path, data, if_match: <etag>}])`. The
-   first write asks the user for a one-time project write grant. On a
-   `conflict` nothing was written — someone edited the canvas meanwhile: resync
-   from step 1 of the sync and decide again.
-6. Resync (the etag has moved) and lint again.
+What reaches Claude Design's agent is **a file in its project** — it reads the
+project's files from any chat. Two other routes look available and are not:
 
-**`structure` / `naming` — a demand posted to the design project.** How a
-canvas is built or what things are called — splitting one element holding
-several screens, unbalanced markup, which label or id a board should have —
-is the design side's call, never rewritten from here.
+- **A chat posted from here** (`put_conversation`) is a *synced* chat:
+  read-only in Claude Design — nobody can reply or send in it — and the
+  design agent in the user's own chats cannot see it. Never use it for a
+  demand, and never tell the user to "open the chat and say apply".
+- **Editing a canvas from here** replaces the whole file: the MCP has no
+  patch, `write_files` takes the content inline only (`local_path` is not
+  implemented), so a 30-character fix to a 400 KB canvas means sending all
+  400 KB back, typed out, where one wrong byte damages the design.
 
-1. `put_conversation(project_id, title: "design-changes — <repo_name> — requirements not met <date>", messages: [{role: "user", content: <DEMAND.md>, timestamp: <now, RFC 3339>}])`.
-   The repo's name is in the title and in the demand: several repos may post
-   to one project, and the design side must know which one asks.
-2. This posts a chat in the project's chat panel for whoever works on the
-   design. It is **one-way**: Claude Design's own agent does not act on it by
-   itself. Tell the user it is posted and that the design side must act on it
-   (open the project and have it done).
-3. The next sync's lint says whether it was met.
+Delivering a demand:
+
+1. `dc lint` has written `<design_dir>/DEMAND.md`. Write the design side's copy
+   from it — **`DEMAND-<repo_name>.md`** — for a reader who has never seen
+   this repo: who asks and why, what it replaces, every item with its canvas
+   and board named as the design names them (the project's file names, not
+   local renames), and what is *not* needed. Change nothing beyond what lint
+   found.
+2. `get_claude_design_prompt(project_id)` — required once before any write.
+3. `finalize_plan(project_id, writes: ["DEMAND-<repo_name>.md"])` — the write
+   boundary; it prompts the user and returns a `plan_token` and `base_etags`
+   (`"0"` for a new file). `write_files` without a plan token is refused.
+4. `write_files(project_id, plan_token, files: [{path, data, if_match}])`.
+   A correction inside the token's ~15 minutes reuses it with the new etag.
+5. Give the user **the one line to send**, in any chat of the design project:
+   *"Read DEMAND-<repo_name>.md in this project and apply it."* The agent does
+   nothing until someone sends it.
+6. The next sync's lint says whether it was met; when nothing is owed, write
+   the file again saying so (or ask the user whether to delete it).
+
+**`demand_mode: "write"`** adds one thing: an **attribute** fix (an attribute
+or caption text on an existing element) on a canvas small enough to send whole
+may be written by Claude Code — after the user approves each exact edit (old →
+new), with `read_file` for the bytes and etag, the same `finalize_plan` →
+`write_files`, and a `read_file` afterwards compared byte for byte with what
+was meant. Structure and naming — splitting an element, closing markup, which
+label or id a board gets — are the design side's call, always in the file.
 
 A board that fails lint is still diffed and mirrored — the history must not
 stop — but code is not built or marked against it until it passes.
@@ -270,9 +293,12 @@ When the project has no `design-changes.json` at its root:
 `<design_dir>/DEMAND.md` when anything is owed on a canvas this repo owns,
 and prints `DECIDE NOW` while `demand_mode` or `id_scheme` is unset — **ask
 the user those in this turn** (*Demands* above), write the answers, run lint
-again, then deliver. Tell the user which boards are blocked, and which
-findings are `ref` (another repo's to demand). A `foreign file` warning is
-repo-side: deal with it before the commit. Continue the sync either way.
+again, then deliver it as a file in the design project (*Demands*, *The
+route*). Before demanding a rule, check the design does not already meet it
+another way (`dc frames` for devices). Tell the user which boards are
+blocked, and which findings are `ref` (another repo's to demand). A `foreign
+file` warning is repo-side: deal with it before the commit. Continue the sync
+either way.
 
 ### 4. Look at the images (not only their bytes)
 
@@ -330,7 +356,14 @@ id yet. A screen citing an id the design no longer has is listed (`orphan_ids`).
 `dc lint` passes for its board, then `dc render <canvas> "<board label>"` and
 **look at the picture** before writing code — never build from canvas markup
 read by eye. `dc boards <canvas>` lists a canvas's labels and ids, and fails on
-a canvas with no artboards.
+a canvas with no artboards; `dc frames [<canvas>]` says what each board is
+drawn in, from the source.
+
+The picture is how the board **looks**; the source says what it **is**. A
+render serves the canvas over a local HTTP server so the design runtime can
+load what the board imports (its device frame); a board that renders with no
+frame, or at a width its source does not state, is a rendering fault to fix in
+the skill — never a fact about the design.
 
 ## After building a screen
 
@@ -378,13 +411,13 @@ system — fix it, do not allow-list it.
 | `repo_name` | this repo's name on demands and chats posted to the project (default: the root folder's name) |
 | `owns` | globs on local canvas names this repo builds; the rest is reference — diffed, never demanded, marked or counted unbuilt here (null: all) |
 | `keep` | globs on paths under `design_dir` allowed besides the mirror and the skill's own; anything else is a foreign-file warning |
-| `demand_mode` | `"post"` or `"write"` — how demands reach the design; null: lint says `DECIDE NOW`, ask the user this turn |
+| `demand_mode` | `"file"` or `"write"` — how demands reach the design (`"post"` is read as `"file"`); null: lint says `DECIDE NOW`, ask the user this turn |
 | `id_scheme` | `{prefix, start, pad}` — how a board with no id gets one; lint then proposes the exact id; null: lint says `DECIDE NOW` when a board lacks an id |
 | `projects` | several pairings in one repo: a list of entries, each overriding the top-level keys (own `project_id`, `project_name`, `design_dir`, …); commands then take `--design <dir>` / `--project <name>` |
 | `design_dir` | the mirror, relative to the root (`design`) |
 | `canvas_ext`, `board_attr` | a canvas file and its board attribute (`.dc.html`, `data-screen-label`) |
-| `device_attr` | the attribute a board declares its device in (`data-device`) |
-| `device_widths` | per device, the CSS px width range of its board (`{"phone": [240, 600], "tablet": [600, 1366], "desktop": [1024, 100000]}`); its keys are the devices a board may declare |
+| `device_attr` | the attribute a board declares its device in (`data-device`); it wins over the device read from the board's frame |
+| `device_widths` | per device, the CSS px width range of its board (`{"phone": [240, 600], "tablet": [600, 1366], "desktop": [1024, 100000]}`); a frame's width is read as the device whose range holds it; its keys are the devices a board may declare. Mockup widths — never sizes for code |
 | `device_scale` | pixel scale a board renders at, by device (`{"phone": 2, "tablet": 2, "desktop": 1, "default": 2}`) |
 | `platform` | what the app runs on — `android`, `ios`, `desktop`, `web`; `dc vet` gives the capture method |
 | `notes_file` | the design side's notes file in `design_dir` (`NEXT.md`); `null` = not checked |

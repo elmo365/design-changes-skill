@@ -1,6 +1,6 @@
 # Install or update the design-changes skill for every project on this machine.
 #
-#   irm https://raw.githubusercontent.com/elmo365/design-changes-skill/v2.1.1/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/elmo365/design-changes-skill/v3.0.0/install.ps1 | iex
 #   .\install.ps1 [-Project <path>] [-Ref <tag>]   # from a checkout; -Project also sets a project up
 #
 # Installs one release: the tag in $Ref (this script's own release by default;
@@ -13,7 +13,7 @@
 #    Code (the MCP is only reachable from a session): ask "set up design-changes".
 param(
   [string]$Project = '',
-  [string]$Ref = $(if ($env:DESIGN_CHANGES_REF) { $env:DESIGN_CHANGES_REF } else { 'v2.1.1' }),
+  [string]$Ref = $(if ($env:DESIGN_CHANGES_REF) { $env:DESIGN_CHANGES_REF } else { 'v3.0.0' }),
   [string]$Repo = 'https://github.com/elmo365/design-changes-skill.git'
 )
 # Native tools write progress to stderr; Windows PowerShell 5.1 would treat

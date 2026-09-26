@@ -20,7 +20,7 @@
 import { mkdirSync, readFileSync, writeFileSync, rmSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, basename, relative } from 'node:path';
 import { CONFIG, ROOT, DESIGN, REPO, git, pkg, esm, opt, changedPaths, standingRules, owns } from './lib/config.mjs';
-import { boards, boardTags, betweenPieces, copyLines, styleChanges, bagMinus, boardId, idPattern, sha, BETWEEN } from './lib/canvas.mjs';
+import { boards, devicesOf, betweenPieces, copyLines, styleChanges, bagMinus, boardId, idPattern, sha, BETWEEN } from './lib/canvas.mjs';
 import { launch, shoot, scaleFor } from './lib/shoot.mjs';
 
 const REGISTRY = join(DESIGN, 'built-against.json');
@@ -302,7 +302,7 @@ export default async function run() {
       const slug = `${basename(item.file, CONFIG.canvas_ext)}--${item.board.replace(/[^A-Za-z0-9-]+/g, '_')}`;
       const newPng = join(shots, `${slug}.new.png`);
       const newText = to === null ? readFileSync(join(ROOT, item.path), 'utf8') : readAt(to, item.path);
-      const scale = scaleFor(boardTags(newText).find((t) => t.label === item.board)?.device);
+      const scale = scaleFor(devicesOf(newText).get(item.board)?.device);
       const newFile = to === null ? join(ROOT, item.path) : staged(newText, 'new', item.file);
       const drawn = await snap(newFile, item.board, newPng, scale);
       if (to !== null) rmSync(newFile);

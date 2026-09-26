@@ -4,6 +4,12 @@ Releases are git tags; `dc version` prints the installed one. Versions follow
 semver: a change to what the skill requires of a design, or to how a config is
 read, is a major version.
 
+## v2.1.1 — 2026-09-26
+
+- Pairing: the user may specify in plain text what each design points to;
+  the agent resolves it against the repo, and asks anything unclear as an
+  interactive question in the same turn — never parked in a doc or chat.
+
 ## v2.1.0 — 2026-09-26
 
 Pairing (owner's ruling, 2026-09-26): the user selects the design project —

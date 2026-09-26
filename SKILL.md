@@ -116,7 +116,14 @@ act**, never the agent's guess:
    only one exists, or the evidence looks conclusive. Where an old mirror
    exists, say per project how well its files match (name and size); that
    evidence **annotates the choices, it never substitutes for the selection**.
-2. The user selects. Write `project_id` AND `project_name`.
+2. The user selects. The selection may be **plain text** ("the kiosk one",
+   "UI design goes with the app screens, the email design with the
+   templates") — the agent, knowing the repo, resolves that text to the
+   project(s) and the `design_dir` each points to. Whatever is not clear is
+   **asked as an interactive question in the same turn** (the question
+   prompt, with the projects as options) — never parked in a document, a
+   posted chat, or a "let me know" at the end of a message.
+3. Write `project_id` AND `project_name`.
 3. `dc compare` / `fetch` / `record` refuse to run unpaired, and every run
    prints `project: <name> (<id>)` so a wrong pairing is seen, not suffered.
    A first sync has no manifest to scream GONE, so the printed name is the

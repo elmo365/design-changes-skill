@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 # Install or update the design-changes skill for every project on this machine.
 #
-#   curl -fsSL https://raw.githubusercontent.com/elmo365/design-changes-skill/v2.1.0/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/elmo365/design-changes-skill/v2.1.1/install.sh | sh
 #   ./install.sh [project-path]          # from a checkout; a path also sets a project up
 #
 # Installs one release: the tag in DESIGN_CHANGES_REF, by default this script's
@@ -10,7 +10,7 @@
 # optionally a project's config and first map.
 set -eu
 REPO="${DESIGN_CHANGES_REPO:-https://github.com/elmo365/design-changes-skill.git}"
-REF="${DESIGN_CHANGES_REF:-v2.1.0}"
+REF="${DESIGN_CHANGES_REF:-v2.1.1}"
 TARGET="$HOME/.claude/skills/design-changes"
 PROJECT="${1:-}"
 

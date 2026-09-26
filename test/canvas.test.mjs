@@ -40,6 +40,12 @@ test('an id is read from the label or a caption written "<id> · "', () => {
   assert.equal(boardId('Release', '<div>2.1 · RELEASE</div>'), '2.1');
 });
 
+test('the caption outside the device frame wins over id-shaped text drawn inside it', () => {
+  const block = '<div data-screen-label="Styles"><x-import component="AndroidDevice" width="{{ 380 }}"><div>3C · 4A</div></x-import><div>20C · STYLES I CAN DO</div></div>';
+  assert.equal(boardId('Styles', block), '20C');
+  assert.equal(boardId('Plain', '<div data-screen-label="Plain"><div>7B · PLAIN</div></div>'), '7B');
+});
+
 test('no id without a digit, or without the " · "', () => {
   assert.equal(boardId('Settings', '<div>NOTE · draft</div>'), null);
   assert.equal(boardId('A8 EFT proofs', ''), null);

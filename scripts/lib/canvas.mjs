@@ -217,10 +217,16 @@ export function boardId(label, block) {
   if (!ID) return null;
   const lead = ID.exec(label);
   if (lead) return lead[1];
-  // A caption counts only written the required way: the id, then " · ".
-  for (const line of copyLines(block)) {
-    const m = ID.exec(line);
-    if (m && line.startsWith(`${m[1]} · `)) return m[1];
+  // A caption counts only written the required way: the id, then " · ". It is
+  // looked for outside the device frame first — the screen inside may draw
+  // text of the same shape ("3C · 4A", hair types on a styles screen), and
+  // taking that for the id sent the design side to rewrite its own chips.
+  const outside = block.replace(/<x-import\b[\s\S]*?<\/x-import>/g, ' ');
+  for (const text of outside === block ? [block] : [outside, block]) {
+    for (const line of copyLines(text)) {
+      const m = ID.exec(line);
+      if (m && line.startsWith(`${m[1]} · `)) return m[1];
+    }
   }
   return null;
 }

@@ -4,6 +4,16 @@ Releases are git tags; `dc version` prints the installed one. Versions follow
 semver: a change to what the skill requires of a design, or to how a config is
 read, is a major version.
 
+## v3.0.1 — 2026-09-27
+
+- **A board's id is read from its caption, not from the screen it draws.**
+  `boardId` took the first line shaped `<id> · ` anywhere in the board, so a
+  styles screen's hair-type chip (`4C · 4B`, then `3C · 4A`) was read as the
+  board's id instead of its caption `20C · STYLES I CAN DO` — and the design
+  side rewrote its own chip to get past it. Text inside the device frame
+  (`<x-import>…</x-import>`) is now looked at only when nothing outside it
+  carries an id. 1 test (55).
+
 ## v3.0.0 — 2026-09-26
 
 What the first real demand against a 206-board design showed: most of what

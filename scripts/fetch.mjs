@@ -28,29 +28,48 @@ const stripText = (b) =>
   Buffer.from(b.toString('latin1')
     .replace(/<(style|script)[^>]*data-omelette-injected[^>]*>[\s\S]*?<\/\1>(\n\n)?/g, ''), 'latin1');
 
-function stripJpeg(b) {
+// Both strippers return null for a file whose segments or chunks run past
+// its end (truncated or mangled): the caller refuses it rather than crash.
+export function stripJpeg(b) {
   const out = [b.subarray(0, 2)];
   let i = 2;
   while (i < b.length) {
     if (b[i] !== 0xff) { out.push(b.subarray(i)); break; }
+    if (i + 1 >= b.length) return null;
     const marker = b[i + 1];
     if (marker === 0xda) { out.push(b.subarray(i)); break; } // start of scan: image data
+    if (i + 4 > b.length) return null;
     const len = b.readUInt16BE(i + 2);
+    if (len < 2 || i + 2 + len > b.length) return null;
     if (marker !== 0xeb) out.push(b.subarray(i, i + 2 + len));
     i += 2 + len;
   }
   return Buffer.concat(out);
 }
 
-function stripPng(b) {
+export function stripPng(b) {
   const out = [b.subarray(0, 8)];
   let i = 8;
   while (i < b.length) {
+    if (i + 12 > b.length) return null;
     const n = b.readUInt32BE(i);
+    if (i + 12 + n > b.length) return null;
     if (b.toString('latin1', i + 4, i + 8) !== 'caBX') out.push(b.subarray(i, i + 12 + n));
     i += 12 + n;
   }
   return Buffer.concat(out);
+}
+
+/** The paths after --only, up to the next option. */
+export function onlyArgs(argv) {
+  const at = argv.indexOf('--only');
+  if (at < 0) return [];
+  const paths = [];
+  for (const a of argv.slice(at + 1)) {
+    if (a.startsWith('--')) break;
+    paths.push(a);
+  }
+  return paths;
 }
 
 function clean(remote, b) {
@@ -74,6 +93,7 @@ export default async function run() {
       const p = join(DESIGN, local);
       if (!existsSync(p) || statSync(p).size === f.size) continue;
       const s = clean(remote, readFileSync(p));
+      if (s === null) { bad += 1; console.log(`CANNOT  ${local}: truncated or mangled — refetch it`); continue; }
       if (s.length === f.size) { writeFileSync(p, s); fixed += 1; console.log(`fixed   ${local}: ${s.length} B (C2PA removed)`); }
       else { bad += 1; console.log(`CANNOT  ${local}: stripped ${s.length}, listed ${f.size} — refetch it`); }
     }
@@ -87,8 +107,7 @@ export default async function run() {
   const token = u.searchParams.get('t');
   const base = `${u.origin}${u.pathname.split('/serve/')[0]}/serve/`;
 
-  const onlyAt = process.argv.indexOf('--only');
-  const wanted = onlyAt >= 0 ? process.argv.slice(onlyAt + 1).filter((a) => !a.startsWith('--')) : [];
+  const wanted = onlyArgs(process.argv);
   if (flag('--changed') || flag('--missing')) {
     const mf = join(DESIGN, 'manifest.json');
     const manifest = existsSync(mf) ? JSON.parse(readFileSync(mf, 'utf8')).files : {};
@@ -115,6 +134,11 @@ export default async function run() {
       failed += 1; console.log(`FAILED  ${remote}: ${e.message}`); continue;
     }
     const data = clean(remote, raw);
+    if (data === null) {
+      failed += 1;
+      console.log(`REFUSED ${remote}: ${raw.length} B served, truncated or mangled — not written`);
+      continue;
+    }
     if (data.length !== f.size) {
       failed += 1;
       console.log(`REFUSED ${remote}: ${raw.length} B served, ${data.length} after cleaning, ${f.size} listed — not written`);

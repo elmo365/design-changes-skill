@@ -4,6 +4,13 @@ Releases are git tags; `dc version` prints the installed one. Versions follow
 semver: a change to what the skill requires of a design, or to how a config is
 read, is a major version.
 
+## v3.0.2 — 2026-09-27
+
+- v3.0.1 was tagged with `package.json` still at 3.0.0 and the installers
+  still pinning v3.0.0 (the version bump failed and the release went ahead
+  without it). This release carries v3.0.1's fix with the numbers right; use
+  it, not v3.0.1.
+
 ## v3.0.1 — 2026-09-27
 
 - **A board's id is read from its caption, not from the screen it draws.**

@@ -12,16 +12,16 @@ code each change touches, keeps a generated board ↔ code map
 Windows (PowerShell):
 
 ```powershell
-irm https://raw.githubusercontent.com/elmo365/design-changes-skill/v3.0.0/install.ps1 | iex
+irm https://raw.githubusercontent.com/elmo365/design-changes-skill/v3.0.2/install.ps1 | iex
 ```
 
 macOS / Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/elmo365/design-changes-skill/v3.0.0/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/elmo365/design-changes-skill/v3.0.2/install.sh | sh
 ```
 
-The installer puts release **v3.0.0** at `~/.claude/skills/design-changes`,
+The installer puts release **v3.0.2** at `~/.claude/skills/design-changes`,
 installs its own Playwright and Chromium, and registers the `claude-design` MCP
 for your user if it is not there. Pass a project path
 (`install.ps1 -Project <dir>` / `install.sh <dir>`) to write that project's

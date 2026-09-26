@@ -157,8 +157,9 @@ export function boardId(label, block) {
 /** A regex that finds a board id written as an id in code. */
 export function idPattern(id) {
   // A bare number ("11") is everywhere in code; it counts only in backticks, or
-  // as "11 · " the way captions write it.
+  // as "11 · " the way captions write it — and not glued to a word, so a
+  // project's own label such as "B13 · " does not read as board 13.
   return /^\d+$/.test(id)
-    ? new RegExp(`\`${id}\`|(^|[^0-9])${id} · `)
+    ? new RegExp(`\`${id}\`|(^|[^0-9A-Za-z])${id} · `)
     : new RegExp(`(^|[^A-Za-z0-9])${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^A-Za-z0-9]|$)`);
 }

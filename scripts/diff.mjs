@@ -20,7 +20,8 @@
 import { mkdirSync, readFileSync, writeFileSync, rmSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, basename, relative } from 'node:path';
 import { CONFIG, ROOT, DESIGN, REPO, git, pkg, esm, opt, changedPaths, standingRules, owns } from './lib/config.mjs';
-import { boards, devicesOf, betweenPieces, copyLines, styleChanges, bagMinus, boardId, idPattern, sha, BETWEEN } from './lib/canvas.mjs';
+import { boards, devicesOf, betweenPieces, copyLines, styleChanges, bagMinus, boardId, sha, BETWEEN } from './lib/canvas.mjs';
+import { loadLinks, audit } from './links.mjs';
 import { launch, shoot, scaleFor } from './lib/shoot.mjs';
 
 const REGISTRY = join(DESIGN, 'built-against.json');
@@ -67,16 +68,12 @@ function allCode() {
   for (const root of CONFIG.code_roots) if (existsSync(join(ROOT, root))) walk(join(ROOT, root));
   return codeFiles;
 }
-// A board with an id is found by its id only. Labels are ordinary words
-// ("Settings", "Deliveries") that code uses for everything else too, so a
-// label match says little. A board with no id fails `dc lint`; until the
-// design side gives it one, its label is the only handle left.
-const citesLabel = (text, l) =>
-  (l.length > 6 ? text.includes(l) : [`\`${l}\``, `'${l}'`, `"${l}"`, `${l} ·`, `\`${l} `].some((q) => text.includes(q)));
-const citesBoard = (text, b) => (b.id ? idPattern(b.id).test(text) : citesLabel(text, b.label));
-function citing(label, id) {
-  return allCode().filter((f) => citesBoard(f.text, { label, id })).map((f) => f.path);
-}
+// ---- which code implements a board ------------------------------------------
+// From the verified links (links.mjs) and nothing else. A comment naming a
+// board id is not evidence of anything (code-discovery §3): the id may have
+// been reassigned or the board retired, and the comment keeps pointing wherever
+// the id now lands. Links are made by discovery and checked on every run.
+const linkedCode = (file, label) => (loadLinks()[`${file}::${label}`]?.code ?? []).map((c) => c.file);
 
 // ---- the map ---------------------------------------------------------------
 // Generated, never hand-kept: a hand-kept board → file map goes stale the day
@@ -85,43 +82,35 @@ export function writeMap() {
   const reg = registry();
   const rows = [];
   const refRows = [];
-  const ids = new Set();
-  const all = [];
-  let unbuilt = 0, stale = 0;
-  for (const file of canvases()) {
-    const mine = owns(file);
-    for (const [label, block] of boards(readFileSync(join(DESIGN, file), 'utf8'))) {
-      if (label === BETWEEN) continue;
-      const id = boardId(label, block);
-      all.push({ label, id });
-      if (id) ids.add(id);
-      const files = citing(label, id);
-      const built = reg[`${file}::${label}`];
-      const state = built ? (built.hash === sha(block) ? `built against ${markedIn(built)}` : `**changed since ${markedIn(built)}**`) : '';
-      const cites = files.length ? files.slice(0, 4).map((f) => `\`${f}\``).join('<br>') + (files.length > 4 ? `<br>+${files.length - 4} more` : '') : '';
-      if (!mine) { refRows.push(`| ${id ?? '—'} | ${label} | ${file.replace(CONFIG.canvas_ext, '')} | ${cites || '—'} |`); continue; }
-      if (!files.length) unbuilt += 1;
-      if (built && built.hash !== sha(block)) stale += 1;
-      rows.push(`| ${id ?? '—'} | ${label} | ${file.replace(CONFIG.canvas_ext, '')} | ${cites || '**nothing cites it**'} | ${state} |`);
-    }
+  const counts = { built: 0, partial: 0, absent: 0, none: 0, recheck: 0 };
+  let stale = 0;
+  const { rows: audited, stale: gone } = audit(canvases());
+  const linkedFiles = new Set();
+  const cell = (code) => code.map((c) => `\`${c.file}\`${c.symbol ? ` · ${c.symbol}` : ''}`).join('<br>');
+  for (const r of audited) {
+    const { file, label, id, link, problems } = r;
+    for (const c of link?.code ?? []) linkedFiles.add(c.file);
+    const where = file.replace(CONFIG.canvas_ext, '');
+    if (!owns(file)) { refRows.push(`| ${id ?? '—'} | ${label} | ${where} | ${link ? cell(link.code) || link.status : '—'} |`); continue; }
+    const built = reg[`${file}::${label}`];
+    const block = boards(readFileSync(join(DESIGN, file), 'utf8')).get(label);
+    const mark = built ? (built.hash === sha(block) ? `built against ${markedIn(built)}` : `**changed since ${markedIn(built)}**`) : '';
+    if (built && built.hash !== sha(block)) stale += 1;
+    let status;
+    if (!link) { counts.none += 1; status = '**not yet linked**'; }
+    else if (problems.length) { counts.recheck += 1; status = `**recheck** — ${problems.join('; ')}`; }
+    else { counts[link.status] += 1; status = link.status === 'built' ? `built · checked ${link.checked}` : `**${link.status}** · checked ${link.checked}`; }
+    rows.push(`| ${id ?? '—'} | ${label} | ${where} | ${link ? cell(link.code) || '—' : '—'} | ${link?.reached ?? ''} | ${status} | ${mark} |`);
   }
 
-  const orphans = new Set();
-  if (CONFIG.orphan_ids) {
-    const re = new RegExp(CONFIG.orphan_ids.pattern, 'g');
-    for (const f of allCode()) for (const m of f.text.matchAll(re)) {
-      if ((CONFIG.orphan_ids.max == null || +m[1] <= CONFIG.orphan_ids.max) && !ids.has(m[0])) orphans.add(`${m[0]} in \`${f.path}\``);
-    }
-  }
-
-  // Screens in code that cite no board. Allowed only when built from the
+  // Screens in code that no link points at. Allowed only when built from the
   // design system — each kind's `require` / `forbid` rules say what that means.
   const sections = [];
   let undrawnTotal = 0;
   for (const kind of CONFIG.screens) {
     const pathRe = new RegExp(kind.path);
     const undrawn = allCode().filter((f) => pathRe.test(f.path))
-      .filter((f) => !all.some((b) => citesBoard(f.text, b)));
+      .filter((f) => !linkedFiles.has(f.path));
     undrawnTotal += undrawn.length;
     const req = Object.entries(kind.require ?? {});
     const forbid = Object.entries(kind.forbid ?? {});
@@ -142,27 +131,26 @@ export function writeMap() {
     );
   }
 
-  const noId = all.filter((b) => !b.id).length;
   const doc = [
     '# Screen ↔ code map — generated',
     '',
-    `**Generated by the \`design-changes\` skill (\`dc map\`) — do not edit by hand.** Each board in the design that \`${REPO}\` builds, the code that cites it by its id (a board with no id, by its label, until the design gives it one), and whether that code was built against the board as it is now (\`dc mark\`).`,
+    `**Generated by the \`design-changes\` skill (\`dc map\`) — do not edit by hand.** Each board in the design that \`${REPO}\` builds and the code that implements it — from **verified links** (\`design/SCREEN-LINKS.json\`, made by discovery with \`dc link\`), never from comments. Each link is re-checked on every run: the file exists, the symbol is still declared in it, and the board has not changed since the link was checked.`,
     '',
     standingRules('> ⚑ '),
     '',
-    `${rows.length} boards owned by ${REPO} · ${unbuilt} cited by no code · ${stale} changed since built against${noId ? ` · **${noId} with no id (\`dc lint\`)**` : ''}${refRows.length ? ` · ${refRows.length} reference boards (another repo builds them)` : ''}`,
+    `${rows.length} boards owned by ${REPO} · ${counts.built} built · ${counts.partial} partial · ${counts.absent} absent · **${counts.none} not yet linked** · ${counts.recheck} to recheck · ${stale} changed since built against${gone.length ? ` · ${gone.length} links to boards the design no longer has` : ''}${refRows.length ? ` · ${refRows.length} reference boards (another repo builds them)` : ''}`,
     '',
-    '| Id | Board | Canvas | Code citing it | Built against |',
-    '|---|---|---|---|---|',
+    '| Id | Board | Canvas | Implemented by | Reached | Link | Built against |',
+    '|---|---|---|---|---|---|---|',
     ...rows,
     '',
-    refRows.length ? `## Reference boards — another repo builds these (${refRows.length})\n\nMirrored here because this repo's screens link to them (\`owns\` in design-changes.json says which canvases are this repo's). Diffed for history; demanded, built and marked in the repo that owns them — never here.\n\n| Id | Board | Canvas | Code here citing it |\n|---|---|---|---|\n${refRows.join('\n')}\n` : '',
-    orphans.size ? `## Code citing a board id the design does not have\n\n${[...orphans].sort().map((o) => `- ${o}`).join('\n')}\n` : '',
-    CONFIG.screens.length ? `## Screens in code with no board (${undrawnTotal})\n\nAllowed only when built from the design's components and theme. A ✗ is a screen that has left the design system — fix it, do not allow-list it.\n` : '',
+    refRows.length ? `## Reference boards — another repo builds these (${refRows.length})\n\nMirrored here because this repo's screens link to them (\`owns\` in design-changes.json says which canvases are this repo's). Diffed for history; demanded, built and marked in the repo that owns them — never here.\n\n| Id | Board | Canvas | Linked code here |\n|---|---|---|---|\n${refRows.join('\n')}\n` : '',
+    gone.length ? `## Links to boards the design no longer has\n\n${gone.sort().map((o) => `- ${o}`).join('\n')}\n` : '',
+    CONFIG.screens.length ? `## Screens in code no link points at (${undrawnTotal})\n\nEither a board is still to be linked to it, or it has no board — then it is allowed only when built from the design's components and theme. A ✗ is a screen that has left the design system — fix it, do not allow-list it.\n` : '',
     ...sections,
   ].join('\n');
   writeFileSync(MAP, doc);
-  return `${rel(MAP)} regenerated: ${rows.length} boards owned, ${unbuilt} cited by no code, ${stale} changed since built, ${refRows.length} reference, ${orphans.size} orphan citations, ${undrawnTotal} screens with no board`;
+  return `${rel(MAP)} regenerated: ${rows.length} boards owned, ${counts.built} built, ${counts.partial} partial, ${counts.absent} absent, ${counts.none} not yet linked, ${counts.recheck} to recheck, ${stale} changed since built, ${refRows.length} reference, ${undrawnTotal} screens no link points at`;
 }
 
 // ---- the commands ----------------------------------------------------------
@@ -248,10 +236,10 @@ export default async function run() {
 
     const codeLine = (label, block) => {
       const id = boardId(label, block);
-      const files = citing(label, id);
+      const files = linkedCode(file, label);
       const built = reg[`${file}::${label}`];
       const stale = built && built.hash !== sha(block) ? ` · **changed since built against ${markedIn(built)} (${built.date})**` : built ? ' · built against this version' : '';
-      return `  - code${id ? ` (id ${id})` : ''}: ${files.length ? files.slice(0, 8).join(', ') + (files.length > 8 ? ` +${files.length - 8} more` : '') : '**none cites it — unbuilt or uncited**'}${stale}`;
+      return `  - code${id ? ` (id ${id})` : ''}: ${files.length ? files.join(', ') : '**no verified link — `dc link` it by discovery**'}${stale}`;
     };
 
     for (const b of addedB) {
@@ -259,7 +247,7 @@ export default async function run() {
       say(codeLine(b, nb.get(b)));
       toRender.push({ file, path, board: b, old: null });
     }
-    for (const b of removedB) say(`- **removed** ${b} — code citing it: ${citing(b, boardId(b, ob.get(b))).join(', ') || 'none'}`);
+    for (const b of removedB) say(`- **removed** ${b} — linked code: ${linkedCode(file, b).join(', ') || 'none'}`);
     for (const b of changedB) {
       const oc = copyLines(ob.get(b)), nc = copyLines(nb.get(b));
       const plus = bagMinus(nc, oc), less = bagMinus(oc, nc);

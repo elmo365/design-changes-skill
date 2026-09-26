@@ -28,7 +28,10 @@ const HELP = `design-changes — what moved in the design, and what it touches i
   map                          regenerate SCREEN-CODE-MAP.md
   boards <canvas>              list a canvas's boards; fail if one is lost
   frames [<canvas>]            what each board says it is drawn in, from the source
-  cites <id> [<id>…]           every code line citing a board id, file:line
+  cites <id> [<id>…]           every code line citing a board id, file:line (comment hygiene only)
+  link "<canvas>::<label>" --status built|partial|absent [--code f#Sym,…] [--reached "…"] --evidence "…"
+                               record a board's code, found by DISCOVERY (code-discovery skill)
+  links                        every link re-checked; boards not yet linked
   record <listing.json>        record the sync in manifest.json
   plan                         every board named in the plan doc
   render <canvas> "<label>"…   artboards to PNG
@@ -95,6 +98,12 @@ async function main() {
     case 'boards': { const { listBoards } = await import('./diff.mjs'); return listBoards(args[0]); }
     case 'frames': return (await import('./frames.mjs')).default(args[0]);
     case 'cites': return (await import('./cites.mjs')).default(args);
+    case 'link': return (await import('./links.mjs')).link(args[0]);
+    case 'links': {
+      const { readdirSync } = await import('node:fs');
+      const { DESIGN } = await import('./lib/config.mjs');
+      return (await import('./links.mjs')).linksCommand(readdirSync(DESIGN).filter((f) => f.endsWith(CONFIG.canvas_ext)).sort());
+    }
     case 'mark': { const { markBuilt } = await import('./diff.mjs'); return markBuilt(args[0]); }
     case 'plan': return (await import('./plan.mjs')).default();
     case 'render': return (await import('./render.mjs')).default(...args);

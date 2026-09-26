@@ -46,7 +46,7 @@ import { launch, measure } from './lib/shoot.mjs';
 const devices = () => Object.keys(CONFIG.device_widths);
 export const DEMAND_FILE = 'DEMAND.md';
 /** Files the skill itself keeps in design_dir. */
-const SKILL_OWN = /^(manifest\.json|built-against(\.[0-9a-f]+\.bak)?\.json|SCREEN-CODE-MAP\.md|DEMAND\.md|\.diff-.*|screenshots(\/.*)?)$/;
+const SKILL_OWN = /^(manifest\.json|built-against(\.[0-9a-f]+\.bak)?\.json|SCREEN-CODE-MAP\.md|SCREEN-LINKS\.json|DEMAND\.md|\.diff-.*|screenshots(\/.*)?)$/;
 
 /** Findings in one canvas's source: [{canvas, board, rule, level, kind, fix}]. */
 export function lintCanvas(canvas, html) {

@@ -56,8 +56,6 @@ export const DEFAULTS = {
   // keep. Each: { name, path (regex on the repo path), require: {column: regex},
   // forbid: {column: regex}, pass_path (regex: counts as meeting `require`) }.
   screens: [],
-  // Code citing an id the design no longer has: { pattern (group 1 numeric), max }.
-  orphan_ids: null,
   // The design side's notes file (in design_dir): what each session changed
   // and why. `dc lint` warns when a canvas changed and this did not.
   notes_file: 'NEXT.md',

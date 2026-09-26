@@ -4,6 +4,40 @@ Releases are git tags; `dc version` prints the installed one. Versions follow
 semver: a change to what the skill requires of a design, or to how a config is
 read, is a major version.
 
+## v4.0.0 — 2026-09-27
+
+**Breaking: the board ↔ code map is verified links made by discovery. Code
+comments are no longer the map.**
+
+The map used to be "every file whose text contains the board's id" — comments,
+in practice. That is exactly what the code-discovery skill forbids (§3: *a
+comment is a hypothesis to check against the code, never evidence*), and on
+the first real id reassignment it failed silently: 251 comments went on
+"citing" boards that had moved, third-party docs "cited" boards, and bare
+numbers matched.
+
+- **`design/SCREEN-LINKS.json`**, one verified link per board: the code that
+  implements it (`file#Symbol`), how a person reaches it, status `built` /
+  `partial` / `absent`, the evidence (what was searched and read), the board's
+  hash and the commit it was checked at.
+- **`dc link`** records a link — made by the agent following `code-discovery`:
+  `search_code` on what the board draws, callers/routes to confirm it is
+  reached, a read to confirm it draws the board. `dc link --from <batch>` for
+  many. **`dc links`** re-checks every one: file exists, each symbol still
+  **declared** there (a class, def, function or getter — a call does not
+  count), board unchanged since checked. A failing link is `recheck`, never
+  re-pointed.
+- **`dc map` / `dc diff`** draw from links only: implemented by, reached, link
+  status, built-against; *not yet linked* for a new board. "Screens with no
+  board" is now "screens in code no link points at". `orphan_ids` and the id
+  scan are gone; `dc cites` stays, for comment hygiene only.
+- SKILL.md: *The map is links made by discovery — never comments*; the sync,
+  *Act on it* and *After building a screen* rewritten around links.
+- First real map (Ipelegeng, 206 boards): 143 built, 22 partial, 41 absent —
+  and discovery corrected two conclusions the comments had produced (an auth
+  gate nearly called absent; a fare rule said to be the retired one).
+- 6 tests (61).
+
 ## v3.1.0 — 2026-09-27
 
 - **`dc cites <id>…`** — every code line citing a board id, as `file:line`,

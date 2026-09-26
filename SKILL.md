@@ -1,6 +1,6 @@
 ---
 name: design-changes
-description: Mirror a Claude Design project into a repo, hold the design to the structure the skill requires (artboards, board ids, a device per board — its frame or a declared one) and demand fixes from the design side as a file written into the design project through the claude-design MCP when it falls short, find exactly what changed — which files, which boards, which copy and style, how it looks (Playwright), and which code it affects — keep a generated board↔code map (SCREEN-CODE-MAP.md), and vet a built screen against its board (app screenshot beside the rendered artboard, copy checklist). Standing rules travel with every use — a board is a static mockup, code is fluid at every width (unless the board itself is fluid, then port its fluid rules); board values are placeholders, code shows real data only. Use at the start of any design-facing session, whenever the design is said to have moved, before building or ticking a screen against an artboard, after building one (mark it built against its board), and in UI testing to vet screens against the design. First run in a project sets it up through the claude-design MCP.
+description: Mirror a Claude Design project into a repo, hold the design to the structure the skill requires (artboards, board ids, a device per board — its frame or a declared one) and demand fixes from the design side as a file written into the design project through the claude-design MCP when it falls short, find exactly what changed — which files, which boards, which copy and style, how it looks (Playwright), and which code it affects — keep a board↔code map made by discovery with the code-discovery skill and claude-context (verified links in SCREEN-LINKS.json, re-checked every run; code comments are never the map), and vet a built screen against its board (app screenshot beside the rendered artboard, copy checklist). Standing rules travel with every use — a board is a static mockup, code is fluid at every width (unless the board itself is fluid, then port its fluid rules); board values are placeholders, code shows real data only. Use at the start of any design-facing session, whenever the design is said to have moved, before building or ticking a screen against an artboard, after building one (mark it built against its board), and in UI testing to vet screens against the design. First run in a project sets it up through the claude-design MCP.
 ---
 
 # design-changes — what moved in the design, and what it touches in code
@@ -42,7 +42,7 @@ not narrowing:
 2. **Boards** — which artboards were added, removed or changed
 3. **Inside** — copy added and removed; style changes paired old → new, minor ones set aside
 4. **Picture** — only the changed boards, old against new, pixel regions
-5. **Code** — the files that cite each changed board's id, and whether they were built against this version
+5. **Code** — the code **linked** to each changed board by discovery (never found by its comments), and whether it was built against this version
 
 Every command is one entry point, run from anywhere inside the project:
 
@@ -100,8 +100,8 @@ picture renders — **never a size for code**.
 
 **Required of the repo side** (lint warns; fixed here, never demanded of the
 design): `design_dir` holds only the mirror and the skill's own files
-(`manifest.json`, `built-against.json`, `SCREEN-CODE-MAP.md`, `DEMAND.md`,
-`screenshots/`). Any other file there is **foreign** — usually an old doc or an
+(`manifest.json`, `built-against.json`, `SCREEN-LINKS.json`,
+`SCREEN-CODE-MAP.md`, `DEMAND.md`, `screenshots/`). Any other file there is **foreign** — usually an old doc or an
 old scheme the next session would read and follow. Move it out, delete it, or
 list it in `keep` if it truly belongs.
 
@@ -320,16 +320,19 @@ the resync commit message.
 ### 6. The map — regenerated on every run, always
 
 `dc diff` rewrites `SCREEN-CODE-MAP.md` on every run (`dc map` does only that):
-per board, its id, the code that cites that id, and whether that code was built
-against this version; the other way, **screens in code with no board**, each
-checked against the project's `screens` rules. Never edit it by hand.
+per board, its id, the code **linked** to it (`SCREEN-LINKS.json`, below), how
+a person reaches it, the link's status and whether each link still holds, and
+whether the code was built against this version; the other way, **screens in
+code no link points at**, each checked against the project's `screens` rules.
+Never edit it by hand. A **new** board is *not yet linked* until discovery
+links it; a **changed** board's link is flagged *recheck*.
 
 ### 7. Record the sync
 
 1. `dc record listing.json`
 2. Commit `design_dir` whole — canvases, support files, images, `manifest.json`,
-   `SCREEN-CODE-MAP.md`, `DEMAND.md` — in one commit, with the report's
-   headline. An uncommitted resync loses the only "before" the next diff can
+   `SCREEN-LINKS.json`, `SCREEN-CODE-MAP.md`, `DEMAND.md` — in one commit, with
+   the report's headline. An uncommitted resync loses the only "before" the next diff can
    have; an uncommitted demand is lost with the session.
 3. `dc plan` — when the project has a `plan_doc`, every board must be in it.
 
@@ -337,36 +340,65 @@ checked against the project's `screens` rules. Never edit it by hand.
 
 - A **changed** board whose code was **built against an older version** is work
   owed: rebuild to the new drawing, then mark it.
-- A **new** board cited by no code is unbuilt: place it in the plan.
+- A **new** board is linked by discovery (below); if nothing implements it, it
+  is linked `absent` and placed in the plan.
+- A link flagged **recheck** (the board changed, the file or symbol moved) is
+  rediscovered and linked again — never patched to make the flag go away.
 - A board that **fails lint** is not built against until its demand is met.
 - **The design is precedent on UI.** Where the project owner has ruled on
   function, the ruling wins; keep the look.
 - **A board is one width; code is fluid.** Transcribe structure and type scale;
   pixel figures are minimums.
 
-## Code cites the board id
+## The map is links made by discovery — never comments
 
-Every screen built from a board names that board's **id** in its source — a
-comment is enough (`// board 13C · SETTINGS`). The map finds code by id only; a
-label ("Settings") is an ordinary word and is used only for a board that has no
-id yet. A screen citing an id the design no longer has is listed (`orphan_ids`).
+**Which code implements a board is established by discovery, following the
+`code-discovery` skill, and recorded as a link.** A comment naming a board id
+is a hypothesis, never a link: ids get reassigned, boards get retired, and a
+comment keeps pointing wherever the id now lands with nothing to notice (one
+reassignment re-pointed 251 comments at the wrong boards, silently). The
+skill's scripts do not search code for ids to build the map; nothing does.
 
-## When the design reassigns ids
+To link a board (a new one, one flagged recheck, or a first map):
 
-A reassigned id is the one change the map cannot see: code citing it still
-resolves — to the board that holds the id **now**. Neither the map nor
-`orphan_ids` flags it. After any resync where boards changed id:
+1. **Locate** with the MCP tools, per `code-discovery` §1: `search_code` on
+   what the board draws (its title, its lines, its purpose); the app's router
+   and the back office's URLs tell what is bound. **A search miss is not
+   absence** — list the screen files and read before calling anything absent
+   (an auth gate was nearly linked `absent` because two searches missed it).
+2. **Confirm it is reached** (`code-discovery` §2.4): the route that builds it,
+   or the reached screen that opens it — `codegraph_explore` / Serena callers.
+   A screen nothing opens is `partial`, with *unreachable* said.
+3. **Confirm it draws the board**: read it. A mechanical cross-check is fine
+   in a file already identified — the board's own wording found verbatim in
+   its string literals — but words the server composes, sample values and
+   icon ligatures will not be there, so a low figure is a prompt to read, not
+   a verdict.
+4. **Record it:**
+   `dc link "<canvas>::<label>" --status built|partial|absent --code <file>#<Symbol>[,…] --reached "<how a person gets there>" --evidence "<what was searched, read and found>"`
+   (`dc link --from <batch.json>` for many; every entry gets the same checks).
+   `built` — code implements it and is reached; `partial` — part of it, or
+   unreachable, with the gap said; `absent` — nothing implements it.
+   Comments and docs may **suggest** where to look; they are never the
+   evidence (`code-discovery` §3).
 
-1. List every board whose id changed, from the source — the old commit's
-   canvases against the new, by label (the design's own log of reassignments
-   is a claim to check, not the list).
-2. `dc cites <old ids and newly used ids>` — every citing line, `file:line`.
-3. Decide each line by what its code is about (a `13C` in a wallet file is the
-   EFT board; in a safety file it is the board that moved), then edit it. A
-   citation of a board the design **retired** is not renumbered to its
-   successor: the code may still build the retired behaviour — that is a
-   build item, named in the handoff.
-4. Compile, regenerate the map, commit the re-citation on its own.
+The script re-checks every link on every run (`dc links`, and the map): the
+file exists, each symbol is still **declared** there (a class, def, function
+or getter — a call does not count), and the board has not changed since the
+link was checked. A failing link is reported `recheck`, never silently
+re-pointed. `design/SCREEN-LINKS.json` is committed with the sync.
+
+**Linking says where; vetting says how well.** Element-by-element fidelity is
+`dc vet`'s job (below), and `dc mark` records it.
+
+### Comments that cite ids — hygiene only
+
+Code comments may still name board ids for the reader, but they decide
+nothing. When the design reassigns ids, comments go stale; `dc cites <ids>`
+lists every citing line so they can be corrected, each decided by what its
+code is about. A comment citing a **retired** board is not renumbered to the
+successor — the code may still build the retired behaviour; say so where the
+work is tracked.
 
 ## Before building a screen
 
@@ -384,6 +416,8 @@ the skill — never a fact about the design.
 
 ## After building a screen
 
+`dc link` the board to the code that now implements it (discovery, as above —
+the code you just wrote is still confirmed reached, not assumed), then
 `dc mark "<canvas>::<board label>"` records that the code now matches that board
 as it is (`built-against.json`). **Commit `built-against.json` with the build**:
 the map names the commit in which the mark first appears, so the build commit is
@@ -443,7 +477,6 @@ system — fix it, do not allow-list it.
 | `board_id` | regex, group 1 = the id a label or caption leads with; default: letters, digits, dots, dashes with a digit, then ` · `; `null` = labels only |
 | `code_roots`, `code_ext`, `skip_dirs` | where code that cites boards is looked for (`skip_dirs` defaults to dependency and build folders only) |
 | `screens` | `[{name, path, require: {column: regex}, forbid: {column: regex}, pass_path}]` |
-| `orphan_ids` | `{pattern, max}` — code citing an id the design no longer has |
 | `plan_doc`, `plan_count` | the plan every board must be in; a stated count to check |
 | `mask` | selectors masked in pictures |
 | `node_modules_from` | a project folder to borrow Playwright from, if the skill's own is missing |

@@ -13,8 +13,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 export const SKILL = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 export const DEFAULTS = {
-  // Claude Design project id — `list_files` / `render_preview` take it.
+  // The paired Claude Design project — `list_files` / `render_preview` take
+  // the id. Pairing is the user's act (SKILL.md, "Pairing"): the agent lists
+  // the MCP's projects and the USER selects; the name is stored so every sync
+  // can say which project the repo is paired to.
   project_id: null,
+  project_name: null,
   // Where the mirrored design lives, relative to the root.
   design_dir: 'design',
   // A canvas: one HTML file of artboards, each an element with this attribute.
@@ -87,8 +91,32 @@ function findRoot() {
 export const ROOT = findRoot();
 export const CONFIG_FILE = join(ROOT, 'design-changes.json');
 const own = existsSync(CONFIG_FILE) ? JSON.parse(readFileSync(CONFIG_FILE, 'utf8')) : {};
-export const CONFIG = { ...DEFAULTS, ...own };
 export const HAS_CONFIG = existsSync(CONFIG_FILE);
+
+// A repo may pair SEVERAL design projects, each mirrored to its own
+// design_dir: `projects` is a list of pairings, each overriding the file's
+// top-level keys (project_id, project_name, design_dir, and any other —
+// rename, skip, screens…). No `projects` = the top level is the one pairing.
+// With more than one, every command takes `--design <dir>` (or
+// `--project <name>`) to say which; PAIRINGS lists them all for the caller
+// that loops.
+const { projects: extra, ...top } = own;
+export const PAIRINGS = (Array.isArray(extra) && extra.length ? extra : [{}])
+  .map((e) => ({ ...DEFAULTS, ...top, ...e }));
+
+function pick() {
+  if (PAIRINGS.length === 1) return PAIRINGS[0];
+  const byDir = opt('--design');
+  const byName = opt('--project');
+  const hit = PAIRINGS.find((p) => (byDir && p.design_dir === byDir) || (byName && p.project_name === byName));
+  if (hit) return hit;
+  // help / version / init need no pairing; any of them takes the first.
+  if ([undefined, 'help', '--help', 'version', '--version', 'init'].includes(process.argv[2])) return PAIRINGS[0];
+  console.error(`${CONFIG_FILE} pairs ${PAIRINGS.length} design projects — say which:`);
+  for (const p of PAIRINGS) console.error(`  --design ${p.design_dir}   (${p.project_name ?? 'unnamed'} ${p.project_id ?? 'unpaired'})`);
+  process.exit(2);
+}
+export const CONFIG = pick();
 export const DESIGN = join(ROOT, CONFIG.design_dir);
 
 export const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');

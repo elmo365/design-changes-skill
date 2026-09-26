@@ -40,6 +40,7 @@ written to the design by Claude Code through the `claude-design` MCP
 | 14 | `mark` recorded the commit before the build | The commit is read from git: the one where the mark first appears — the build commit | `scripts/diff.mjs` | 7155aeb |
 | 15 | Defaults carried another project's conventions (its id regex, Django folders) | Generic id rule (the required ` · ` form); `skip_dirs` holds dependency and build folders only | `scripts/lib/config.mjs`, `scripts/lib/canvas.mjs` | 954f9dc |
 | 19 | A `screens` kind with no rules wrote a table whose header and separator disagreed (found in the final verification pass) | Header, separator and rows built from one cell list | `scripts/diff.mjs` | f32aaa8 |
+| 20 | (v2.1.0) Pairing a repo to a design project relied on agent judgment; a wrong pin on a FIRST sync would mirror the wrong project silently | The user selects the project, always (SKILL.md *Pairing*); `project_name` stored; compare/fetch/record refuse unpaired and print `project: <name> (<id>)` every run | `scripts/dc.mjs`, `scripts/lib/config.mjs`, SKILL.md | v2.1.0 |
 
 ## Repo
 

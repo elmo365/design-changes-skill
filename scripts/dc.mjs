@@ -8,7 +8,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CONFIG_FILE, DEFAULTS, HAS_CONFIG, ROOT, SKILL } from './lib/config.mjs';
+import { CONFIG, CONFIG_FILE, DEFAULTS, HAS_CONFIG, ROOT, SKILL } from './lib/config.mjs';
 
 const HELP = `design-changes — what moved in the design, and what it touches in code
 
@@ -34,6 +34,9 @@ const HELP = `design-changes — what moved in the design, and what it touches i
   version                      the installed skill's version
 
   --root <dir>                 the project (default: the current git work tree)
+  --design <dir> | --project <name>
+                               which pairing, when design-changes.json pairs
+                               several design projects (its \`projects\` list)
 `;
 
 /** The package version, and the git tag the checkout sits on (or how far past it). */
@@ -44,7 +47,8 @@ function version() {
   return `design-changes ${v}${at && at !== `v${v}` ? ` (checkout at ${at})` : ''}`;
 }
 
-const [cmd, ...args] = process.argv.slice(2).filter((a, i, all) => a !== '--root' && all[i - 1] !== '--root');
+const GLOBAL = ['--root', '--design', '--project'];
+const [cmd, ...args] = process.argv.slice(2).filter((a, i, all) => !GLOBAL.includes(a) && !GLOBAL.includes(all[i - 1]));
 
 async function main() {
   if (!cmd || cmd === 'help' || cmd === '--help') { console.log(`${version()}\n\n${HELP}`); return 0; }
@@ -52,11 +56,23 @@ async function main() {
   if (cmd === 'init') {
     if (HAS_CONFIG) { console.log(`${CONFIG_FILE} already exists.`); return 0; }
     const { node_modules_from, ...starter } = DEFAULTS;
-    writeFileSync(CONFIG_FILE, `${JSON.stringify({ ...starter, project_id: '<claude design project id>' }, null, 2)}\n`);
-    console.log(`Wrote ${CONFIG_FILE}. Set project_id, design_dir, code_roots and screens.`);
+    writeFileSync(CONFIG_FILE, `${JSON.stringify({ ...starter, project_id: null, project_name: null }, null, 2)}\n`);
+    console.log(`Wrote ${CONFIG_FILE}. Pair it first: list the claude-design MCP's projects, have the user SELECT one, then set project_id and project_name. Then set design_dir, code_roots and screens.`);
     return 0;
   }
   if (!HAS_CONFIG) console.error(`(no design-changes.json in ${ROOT} — using defaults; \`dc init\` writes one)`);
+  // The commands that talk about the server refuse to run unpaired. Pairing is
+  // the user's act: the agent lists the MCP's projects and the user selects —
+  // never pinned from evidence alone (SKILL.md, "Pairing").
+  const paired = typeof CONFIG.project_id === 'string' && /^[0-9a-f-]{16,}$/i.test(CONFIG.project_id);
+  if (['compare', 'record', 'fetch'].includes(cmd)) {
+    if (!paired) {
+      console.error(`Not paired: project_id in ${CONFIG_FILE} is ${JSON.stringify(CONFIG.project_id)}.`);
+      console.error('First run: list the projects through the claude-design MCP, have the USER select one, write project_id and project_name, then run this again.');
+      return 2;
+    }
+    console.error(`project: ${CONFIG.project_name ?? '(unnamed — set project_name)'} (${CONFIG.project_id})`);
+  }
   switch (cmd) {
     case 'compare': case 'record': return (await import('./manifest.mjs')).default(cmd, args[0]);
     case 'fetch': return (await import('./fetch.mjs')).default();

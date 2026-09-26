@@ -105,12 +105,48 @@ is the design side's call, never rewritten from here.
 A board that fails lint is still diffed and mirrored — the history must not
 stop — but code is not built or marked against it until it passes.
 
+## Pairing — the user selects the project, always
+
+A repo is **paired** to exactly one Claude Design project: `project_id` and
+`project_name` in `design-changes.json`, committed. Pairing is the **user's
+act**, never the agent's guess:
+
+1. On first run (or whenever `project_id` is null), call the MCP's
+   `list_projects` and put **every** project to the user by name — even when
+   only one exists, or the evidence looks conclusive. Where an old mirror
+   exists, say per project how well its files match (name and size); that
+   evidence **annotates the choices, it never substitutes for the selection**.
+2. The user selects. Write `project_id` AND `project_name`.
+3. `dc compare` / `fetch` / `record` refuse to run unpaired, and every run
+   prints `project: <name> (<id>)` so a wrong pairing is seen, not suffered.
+   A first sync has no manifest to scream GONE, so the printed name is the
+   only guard there — read it back to the user before fetching.
+4. Re-pairing (the design moved to a new project) is the same procedure; the
+   next `dc compare` will list every file as CHANGED/GONE — expected, say so.
+
+**Several designs in one repo.** A repo may pair more than one design project
+— say a UI design and an email design — through the config's `projects` list:
+one entry per pairing, each with its own `project_id`, `project_name` and
+`design_dir` (and any other key it needs to override — `rename`, `skip`,
+`screens`). **The user specifies what each design points to**: each entry is
+its own pairing, selected by the user exactly as above. With more than one
+entry, every command takes `--design <dir>` (or `--project <name>`), and a
+full sync is the sync below run once per pairing.
+
+```json
+{ "code_roots": ["app/lib"],
+  "projects": [
+    { "project_id": "…", "project_name": "Dashboard UI", "design_dir": "design" },
+    { "project_id": "…", "project_name": "Email templates", "design_dir": "design-email",
+      "screens": [] } ] }
+```
+
 ## First run in a project — set it up and build the map
 
 When the project has no `design-changes.json` at its root:
 
-1. `list_projects` → find the project (ask the user if more than one could be
-   it). `dc init` writes a starter `design-changes.json`; set `project_id`.
+1. `dc init`, then **pair** (above): `list_projects` → the user selects →
+   set `project_id` and `project_name`.
 2. Look at the code before filling the rest in, then set:
    - `design_dir` — where the mirror lives (default `design`);
    - `code_roots` — the folders that hold screens (e.g. `["app/lib", "backend"]`);
@@ -255,7 +291,8 @@ system — fix it, do not allow-list it.
 
 | Key | Meaning |
 |---|---|
-| `project_id` | the Claude Design project |
+| `project_id`, `project_name` | the paired Claude Design project — set by the user's selection (*Pairing*), never by the agent alone |
+| `projects` | several pairings in one repo: a list of entries, each overriding the top-level keys (own `project_id`, `project_name`, `design_dir`, …); commands then take `--design <dir>` / `--project <name>` |
 | `design_dir` | the mirror, relative to the root (`design`) |
 | `canvas_ext`, `board_attr` | a canvas file and its board attribute (`.dc.html`, `data-screen-label`) |
 | `device_attr` | the attribute a board declares its device in (`data-device`) |

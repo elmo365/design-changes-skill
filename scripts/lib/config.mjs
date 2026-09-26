@@ -20,6 +20,8 @@ export const DEFAULTS = {
   // A canvas: one HTML file of artboards, each an element with this attribute.
   canvas_ext: '.dc.html',
   board_attr: 'data-screen-label',
+  // Every board declares the device it draws, on the same element.
+  device_attr: 'data-device',
   // Project path → local path. First match wins; unmatched paths keep their
   // name. `$1` is a group; `{slug:1}` is that group kebab-cased.
   rename: [],

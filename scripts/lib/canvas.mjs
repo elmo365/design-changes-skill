@@ -15,19 +15,32 @@ export const decode = (s) => s
 const ID = CONFIG.board_id ? new RegExp(CONFIG.board_id) : null;
 export const BETWEEN = '(between boards)';
 
+const boardOpen = () => new RegExp(`<([a-zA-Z][\\w-]*)\\b[^>]*${CONFIG.board_attr}="([^"]+)"[^>]*>`, 'g');
+const attrOf = (tag, name) => new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1] ?? null;
+
+/** Every board's opening tag, in source order: its label and declared device. */
+export function boardTags(html) {
+  return [...html.matchAll(boardOpen())].map((m) => ({
+    label: decode(m[2]), tag: m[1], index: m.index, device: attrOf(m[0], CONFIG.device_attr),
+  }));
+}
+
 /**
  * label → markup, for every board in a canvas, plus BETWEEN for the text that
  * sits outside every board (tagged with the board it follows).
  *
  * Each board is its own element carrying the board attribute. The markup is
- * not always balanced, so a board never runs past the next board's opening.
+ * not always balanced, so a board never runs past the next board's opening;
+ * the boards that had to be cut there are listed in `.unclosed`, which
+ * `dc lint` fails on.
  */
 export function boards(html) {
   const found = new Map();
+  found.unclosed = new Set();
   let between = '';
   let last = 0;
   let prev = null;
-  const re = new RegExp(`<([a-zA-Z][\\w-]*)\\b[^>]*${CONFIG.board_attr}="([^"]+)"[^>]*>`, 'g');
+  const re = boardOpen();
   const starts = [...html.matchAll(re)].map((x) => x.index);
   let m;
   while ((m = re.exec(html))) {
@@ -37,18 +50,20 @@ export function boards(html) {
     const close = new RegExp(`</${tag}>`, 'g');
     let depth = 1;
     let i = re.lastIndex;
+    let closed = true;
     while (depth > 0) {
       open.lastIndex = i;
       close.lastIndex = i;
       const o = open.exec(html);
       const c = close.exec(html);
-      if (!c) { i = html.length; break; }
+      if (!c) { i = html.length; closed = false; break; }
       if (o && o.index < c.index) { depth += 1; i = o.index + 1; } else { depth -= 1; i = c.index + c[0].length; }
     }
-    i = Math.min(i, cap);
+    if (i > cap) { i = cap; closed = false; }
     between += claim(prev, html.slice(last, m.index), found);
     prev = decode(m[2]);
     found.set(prev, html.slice(m.index, i));
+    if (!closed) found.unclosed.add(prev);
     last = i;
     re.lastIndex = i;
   }

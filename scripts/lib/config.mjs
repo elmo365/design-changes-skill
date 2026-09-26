@@ -56,6 +56,9 @@ export const DEFAULTS = {
   plan_count: null,
   // Elements to mask in pictures (live map tiles and the like).
   mask: [],
+  // What the app runs on — android, ios, desktop or web. `dc vet` says how to
+  // take the app screenshot for it.
+  platform: null,
   // A node_modules to borrow Playwright/pixelmatch/pngjs from, when the
   // skill's own is not installed. Relative to the root.
   node_modules_from: null,

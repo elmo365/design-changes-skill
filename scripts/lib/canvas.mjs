@@ -148,10 +148,12 @@ export function boardId(label, block) {
   if (!ID) return null;
   const lead = ID.exec(label);
   if (lead) return lead[1];
-  const src = ID.source.replace(/^\^/, '').replace(/\\b$/, '');
-  const capRe = new RegExp(`^${src}\\s·\\s[A-Z]`);
-  const cap = copyLines(block).map((l) => capRe.exec(l)).find(Boolean);
-  return cap ? cap[1] : null;
+  // A caption counts only written the required way: the id, then " · ".
+  for (const line of copyLines(block)) {
+    const m = ID.exec(line);
+    if (m && line.startsWith(`${m[1]} · `)) return m[1];
+  }
+  return null;
 }
 
 /** A regex that finds a board id written as an id in code. */

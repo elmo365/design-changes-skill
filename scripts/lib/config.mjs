@@ -25,14 +25,18 @@ export const DEFAULTS = {
   rename: [],
   // Project files not mirrored at all.
   skip: ['.thumbnail'],
-  // A board's id, as its label or caption leads with it ("9A1 · WAITING…",
-  // "A8 EFT proofs"). Group 1 is the id. Null: boards are known by label only.
-  board_id: '^(A\\d+[a-z]?|\\d{1,2}[A-Z]{0,2}\\d?)\\b',
+  // A board's id, as its label or caption leads with it: "13C · WAITING…".
+  // Group 1 is the id — letters, digits, dots and dashes with at least one
+  // digit — followed by " · ". The design side is required to write ids this
+  // way (SKILL.md). Null: boards are known by label only.
+  board_id: '^((?=[A-Za-z0-9.-]*\\d)[A-Za-z0-9][A-Za-z0-9.-]{0,11}) · ',
   // Where to look for code that cites a board.
   code_roots: ['.'],
   code_ext: ['dart', 'py', 'html', 'mjs', 'js', 'jsx', 'ts', 'tsx', 'vue', 'svelte', 'swift', 'kt'],
-  skip_dirs: ['node_modules', '.git', '.venv', 'venv', 'build', 'dist', '.dart_tool', 'migrations',
-    'staticfiles', 'screenshots', '.next', 'coverage', 'Pods', '.gradle'],
+  // Dependencies and build output only; a project's own folders to skip go in
+  // its design-changes.json.
+  skip_dirs: ['node_modules', '.git', '.venv', 'venv', 'build', 'dist', '.dart_tool',
+    'screenshots', '.next', 'coverage', 'Pods', '.gradle'],
   // Screens in code, and the design-system rules a screen with no board must
   // keep. Each: { name, path (regex on the repo path), require: {column: regex},
   // forbid: {column: regex}, pass_path (regex: counts as meeting `require`) }.

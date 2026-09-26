@@ -1,30 +1,35 @@
 # design-changes
 
 A Claude Code skill for projects designed in **Claude Design**. It mirrors the
-design into the repo byte-exact, says exactly what changed between syncs (files,
-boards, copy, style, pictures) and which code each change touches, keeps a
-generated board ↔ code map (`SCREEN-CODE-MAP.md`), and vets a built screen
-against its board.
+design into the repo byte-exact, holds the design to the structure the skill
+needs (and sends the design side a demand when it falls short), says exactly
+what changed between syncs (files, boards, copy, style, pictures) and which
+code each change touches, keeps a generated board ↔ code map
+(`SCREEN-CODE-MAP.md`), and vets a built screen against its board.
 
 ## Install (once per machine)
 
 Windows (PowerShell):
 
 ```powershell
-irm https://raw.githubusercontent.com/elmo365/design-changes-skill/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/elmo365/design-changes-skill/v2.0.0/install.ps1 | iex
 ```
 
 macOS / Linux:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/elmo365/design-changes-skill/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/elmo365/design-changes-skill/v2.0.0/install.sh | sh
 ```
 
-The installer puts the skill at `~/.claude/skills/design-changes`, installs its
-own Playwright and Chromium, and registers the `claude-design` MCP for your user
-if it is not there. Run it again to update. Pass a project path
+The installer puts release **v2.0.0** at `~/.claude/skills/design-changes`,
+installs its own Playwright and Chromium, and registers the `claude-design` MCP
+for your user if it is not there. Pass a project path
 (`install.ps1 -Project <dir>` / `install.sh <dir>`) to write that project's
-config at the same time.
+config at the same time. `dc version` says which release is installed.
+
+**Updating** — run the one-liner of a newer release (the tags on GitHub, and
+`CHANGELOG.md`). Set `DESIGN_CHANGES_REF` to install another tag, or `main`
+for the development head.
 
 Needs Node 20+, git, and the `claude` CLI.
 
@@ -32,11 +37,26 @@ Needs Node 20+, git, and the `claude` CLI.
 
 In Claude Code, inside the project: **"set up design-changes"**. Claude finds
 the design project through the MCP, writes `design-changes.json`, fetches every
-file, records the manifest and builds the map. After that, **"resync the
-design"** runs the whole sync and reports what moved.
+file, lints the design, records the manifest and builds the map. After that,
+**"resync the design"** runs the whole sync and reports what moved.
 
 ## Commands
 
 `node ~/.claude/skills/design-changes/scripts/dc.mjs help` —
-`init`, `compare`, `fetch`, `images`, `diff`, `map`, `boards`, `record`,
-`plan`, `render`, `vet`, `mark`. `SKILL.md` is the procedure.
+`init`, `compare`, `fetch`, `lint`, `images`, `diff`, `map`, `boards`,
+`record`, `plan`, `render`, `vet`, `mark`, `version`. `SKILL.md` is the
+procedure; `FIXES.md` lists what v2 fixed and why.
+
+## Develop
+
+`npm test` runs the tests (`node --test`, synthetic fixtures only — no
+project's design belongs in this repo).
+
+Releasing: bump `version` in `package.json`, the tag in `install.ps1`,
+`install.sh` and this README, add the release to `CHANGELOG.md`, commit, then
+tag `vX.Y.Z` and push the tag. Breaking changes to what the skill requires of
+a design or a config are a major version.
+
+## License
+
+MIT © Ricardo Elmo Diane

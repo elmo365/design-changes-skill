@@ -1,9 +1,11 @@
 # Install or update the design-changes skill for every project on this machine.
 #
-#   irm https://raw.githubusercontent.com/elmo365/design-changes-skill/main/install.ps1 | iex
-#   .\install.ps1 [-Project <path>]      # from a checkout; -Project also sets a project up
+#   irm https://raw.githubusercontent.com/elmo365/design-changes-skill/v2.0.0/install.ps1 | iex
+#   .\install.ps1 [-Project <path>] [-Ref <tag>]   # from a checkout; -Project also sets a project up
 #
-# 1. The skill goes to ~/.claude/skills/design-changes (cloned, or pulled if there).
+# Installs one release: the tag in $Ref (this script's own release by default;
+# $env:DESIGN_CHANGES_REF overrides it, e.g. 'main' for the development head).
+# 1. The skill goes to ~/.claude/skills/design-changes, checked out at that tag.
 # 2. Its own Playwright, pixelmatch and pngjs, and Chromium.
 # 3. The claude-design MCP, registered for the user if it is not already.
 # 4. With -Project: design-changes.json written there, and the map built if
@@ -11,6 +13,7 @@
 #    Code (the MCP is only reachable from a session): ask "set up design-changes".
 param(
   [string]$Project = '',
+  [string]$Ref = $(if ($env:DESIGN_CHANGES_REF) { $env:DESIGN_CHANGES_REF } else { 'v2.0.0' }),
   [string]$Repo = 'https://github.com/elmo365/design-changes-skill.git'
 )
 # Native tools write progress to stderr; Windows PowerShell 5.1 would treat
@@ -19,14 +22,16 @@ $ErrorActionPreference = 'Continue'
 $target = Join-Path $HOME '.claude\skills\design-changes'
 function Check($what) { if ($LASTEXITCODE -ne 0) { Write-Error "$what failed (exit $LASTEXITCODE)"; exit 1 } }
 
-Write-Host '1/4 skill files'
+Write-Host "1/4 skill files ($Ref)"
 if (Test-Path (Join-Path $target '.git')) {
-  git -C $target pull --ff-only; Check 'git pull'
+  git -C $target fetch --quiet --tags --force origin; Check 'git fetch'
+  git -C $target checkout --quiet $Ref; Check "git checkout $Ref"
+  if ((git -C $target symbolic-ref -q HEAD) -ne $null) { git -C $target pull --quiet --ff-only; Check 'git pull' }
 } elseif (Test-Path $target) {
   Write-Error "$target exists and is not a git checkout. Move it aside, then run this again."; exit 1
 } else {
   New-Item -ItemType Directory -Force (Split-Path $target) | Out-Null
-  git clone --quiet $Repo $target; Check 'git clone'
+  git clone --quiet --branch $Ref $Repo $target; Check 'git clone'
 }
 
 Write-Host '2/4 Playwright and Chromium'
@@ -59,4 +64,5 @@ if ($Project) {
 } else {
   Write-Host '    none given. In a project, ask Claude Code: "set up design-changes"'
 }
+node (Join-Path $target 'scripts\dc.mjs') version
 Write-Host "Installed at $target"

@@ -1,25 +1,30 @@
 #!/usr/bin/env sh
 # Install or update the design-changes skill for every project on this machine.
 #
-#   curl -fsSL https://raw.githubusercontent.com/elmo365/design-changes-skill/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/elmo365/design-changes-skill/v2.0.0/install.sh | sh
 #   ./install.sh [project-path]          # from a checkout; a path also sets a project up
 #
-# Same four steps as install.ps1: skill files, Playwright + Chromium, the
-# claude-design MCP, and optionally a project's config and first map.
+# Installs one release: the tag in DESIGN_CHANGES_REF, by default this script's
+# own release ('main' gives the development head). Same four steps as
+# install.ps1: skill files, Playwright + Chromium, the claude-design MCP, and
+# optionally a project's config and first map.
 set -eu
 REPO="${DESIGN_CHANGES_REPO:-https://github.com/elmo365/design-changes-skill.git}"
+REF="${DESIGN_CHANGES_REF:-v2.0.0}"
 TARGET="$HOME/.claude/skills/design-changes"
 PROJECT="${1:-}"
 
-echo '1/4 skill files'
+echo "1/4 skill files ($REF)"
 if [ -d "$TARGET/.git" ]; then
-  git -C "$TARGET" pull --ff-only
+  git -C "$TARGET" fetch --quiet --tags --force origin
+  git -C "$TARGET" checkout --quiet "$REF"
+  if git -C "$TARGET" symbolic-ref -q HEAD >/dev/null; then git -C "$TARGET" pull --quiet --ff-only; fi
 elif [ -e "$TARGET" ]; then
   echo "$TARGET exists and is not a git checkout. Move it aside, then run this again." >&2
   exit 1
 else
   mkdir -p "$(dirname "$TARGET")"
-  git clone "$REPO" "$TARGET"
+  git clone --quiet --branch "$REF" "$REPO" "$TARGET"
 fi
 
 echo '2/4 Playwright and Chromium'
@@ -43,4 +48,5 @@ if [ -n "$PROJECT" ]; then
 else
   echo '    none given. In a project, ask Claude Code: "set up design-changes"'
 fi
+node "$TARGET/scripts/dc.mjs" version
 echo "Installed at $TARGET"

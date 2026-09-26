@@ -5,8 +5,10 @@
 //
 // Runs against the git work tree of the current directory (or --root), whose
 // `design-changes.json` describes the project. `dc init` writes one.
-import { writeFileSync } from 'node:fs';
-import { CONFIG_FILE, DEFAULTS, HAS_CONFIG, ROOT } from './lib/config.mjs';
+import { execFileSync } from 'node:child_process';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { CONFIG_FILE, DEFAULTS, HAS_CONFIG, ROOT, SKILL } from './lib/config.mjs';
 
 const HELP = `design-changes — what moved in the design, and what it touches in code
 
@@ -29,14 +31,24 @@ const HELP = `design-changes — what moved in the design, and what it touches i
   vet <canvas> "<label>" --shot <app.png>
                                app screenshot beside its board + copy checklist
   mark "<canvas>::<label>"     record code as built against the board as it is
+  version                      the installed skill's version
 
   --root <dir>                 the project (default: the current git work tree)
 `;
 
+/** The package version, and the git tag the checkout sits on (or how far past it). */
+function version() {
+  const { version: v } = JSON.parse(readFileSync(join(SKILL, 'package.json'), 'utf8'));
+  let at = '';
+  try { at = execFileSync('git', ['-C', SKILL, 'describe', '--tags', '--always', '--dirty'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { /* not a checkout */ }
+  return `design-changes ${v}${at && at !== `v${v}` ? ` (checkout at ${at})` : ''}`;
+}
+
 const [cmd, ...args] = process.argv.slice(2).filter((a, i, all) => a !== '--root' && all[i - 1] !== '--root');
 
 async function main() {
-  if (!cmd || cmd === 'help' || cmd === '--help') { console.log(HELP); return 0; }
+  if (!cmd || cmd === 'help' || cmd === '--help') { console.log(`${version()}\n\n${HELP}`); return 0; }
+  if (cmd === 'version' || cmd === '--version') { console.log(version()); return 0; }
   if (cmd === 'init') {
     if (HAS_CONFIG) { console.log(`${CONFIG_FILE} already exists.`); return 0; }
     const { node_modules_from, ...starter } = DEFAULTS;

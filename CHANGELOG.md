@@ -4,6 +4,22 @@ Releases are git tags; `dc version` prints the installed one. Versions follow
 semver: a change to what the skill requires of a design, or to how a config is
 read, is a major version.
 
+## v4.2.0 — 2026-09-28
+
+**Component canvases, and boards a browser does not draw.**
+
+- A canvas that another canvas imports as its frame (`<dc-import name="X">`,
+  X its name without the extension) is a **component**, not a screen: it is
+  mirrored (the screens need it to render) but lint no longer demands
+  artboards of it, and `dc frames` says what it is. A design that moved
+  every screen state into its own artboard and kept the interactive frame in
+  a sibling `<Name> Frame.dc.html` was being demanded artboards in the frame.
+- `dc lint --measure` now fails, as structure, a board the source declares
+  that **no element carries once the canvas runs** — one mounted only when a
+  state switcher selects it. Such a board cannot be pictured, diffed or
+  vetted; the fix asked for is to draw it side by side with the others,
+  always in the page.
+
 ## v4.1.0 — 2026-09-28
 
 **`id_map`: ids chosen board by board.** A project that numbers its boards by

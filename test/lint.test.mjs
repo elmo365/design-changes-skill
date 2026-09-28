@@ -1,7 +1,7 @@
 // What the skill requires of the design side.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { lintCanvas, lintProject, demandText, demandable, decisions, foreignFiles } from '../scripts/lint.mjs';
+import { lintCanvas, lintProject, demandText, demandable, decisions, foreignFiles, componentCanvases, notDrawn } from '../scripts/lint.mjs';
 
 const good = `<div data-screen-label="Home" data-device="phone"><div>1A · HOME</div></div>
 <div data-screen-label="Orders" data-device="desktop"><div>1B · ORDERS</div></div>`;
@@ -113,4 +113,21 @@ test('a file in design_dir that is neither mirrored, the skill\'s nor kept is fo
   assert.deepEqual(found.map((f) => f.canvas), ['design-project-sync.md']);
   assert.equal(found[0].side, 'repo');
   assert.equal(found[0].level, 'warn');
+});
+
+test('a canvas another canvas imports as its frame is a component: no artboards demanded of it', () => {
+  const frame = { canvas: 'Shop Frame.dc.html', html: '<div><h1>shop</h1></div>' };
+  const screen = { canvas: 'Shop.dc.html', html: '<div data-screen-label="K1 · Shop" data-device="tablet"><dc-import name="Shop Frame" start="home"></dc-import></div>' };
+  const stray = { canvas: 'Old.dc.html', html: '<main></main>' };
+  assert.deepEqual([...componentCanvases([frame, screen, stray], '.dc.html')], ['Shop Frame.dc.html']);
+  const found = lintProject([frame, screen, stray], null, null);
+  assert.deepEqual(found.map((f) => [f.canvas, f.rule]), [['Old.dc.html', 'no artboards']]);
+});
+
+test('a board the source declares that the browser does not draw is a structure fail', () => {
+  const html = '<div data-screen-label="K9 · Home"></div><div data-screen-label="K10 · Home — landscape"></div>';
+  const found = notDrawn('h.dc.html', html, ['K9 · Home']);
+  assert.deepEqual(found.map((f) => [f.board, f.level, f.kind]), [['K10 · Home — landscape', 'fail', 'structure']]);
+  assert.match(found[0].fix, /side by side/);
+  assert.deepEqual(notDrawn('h.dc.html', html, ['K9 · Home', 'K10 · Home — landscape']), []);
 });

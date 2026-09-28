@@ -48,6 +48,19 @@ export const DEMAND_FILE = 'DEMAND.md';
 /** Files the skill itself keeps in design_dir. */
 const SKILL_OWN = /^(manifest\.json|built-against(\.[0-9a-f]+\.bak)?\.json|SCREEN-CODE-MAP\.md|SCREEN-LINKS\.json|DEMAND\.md|\.diff-.*|screenshots(\/.*)?)$/;
 
+/**
+ * Canvases another canvas imports as its frame (`<dc-import name="X">`, X the
+ * canvas name without its extension). A component is not a screen: it holds
+ * no artboards of its own and is never demanded any.
+ */
+export function componentCanvases(canvases /* [{canvas, html}] */, ext = CONFIG.canvas_ext) {
+  const imported = new Set();
+  for (const { html } of canvases) {
+    for (const m of html.matchAll(/<dc-import\b[^>]*\bname\s*=\s*"([^"]+)"/g)) imported.add(m[1]);
+  }
+  return new Set(canvases.map((c) => c.canvas).filter((c) => c.endsWith(ext) && imported.has(c.slice(0, -ext.length))));
+}
+
 /** Findings in one canvas's source: [{canvas, board, rule, level, kind, fix}]. */
 export function lintCanvas(canvas, html, map = CONFIG.id_map) {
   const found = [];
@@ -92,7 +105,9 @@ export function lintCanvas(canvas, html, map = CONFIG.id_map) {
  * (`proposed`), so the demand — or the approved write — names it exactly.
  */
 export function lintProject(canvases /* [{canvas, html}] */, scheme = CONFIG.id_scheme, map = CONFIG.id_map) {
-  const found = canvases.flatMap(({ canvas, html }) => lintCanvas(canvas, html, map));
+  const components = componentCanvases(canvases);
+  const found = canvases.flatMap(({ canvas, html }) => lintCanvas(canvas, html, map)
+    .filter((f) => !(components.has(canvas) && f.rule === 'no artboards')));
   const ids = new Map();
   for (const { canvas, html } of canvases) {
     for (const [label, block] of boards(html)) {
@@ -130,15 +145,30 @@ export function lintProject(canvases /* [{canvas, html}] */, scheme = CONFIG.id_
   return found;
 }
 
-/** Warnings from rendering: a board's width against its device, and fixed frames. */
+/**
+ * Boards the source declares that no element carries once the canvas runs in a
+ * browser — hidden behind a state switcher, mounted only on a tap. Such a
+ * board cannot be pictured, diffed or vetted: a structure fail.
+ */
+export function notDrawn(canvas, html, seen /* labels measured in the browser */) {
+  const shown = new Set(seen);
+  return boardTags(html).filter((t) => !shown.has(t.label)).map((t) => ({
+    canvas, board: t.label, rule: 'not drawn in a browser — no element carries its label once the canvas runs', level: 'fail', kind: 'structure',
+    fix: 'Draw this board side by side with the others in its canvas, always in the page — not mounted only when a switcher selects it. A board that is not in the page cannot be pictured, diffed or vetted.',
+  }));
+}
+
+/** Findings from rendering: boards not drawn, a board's width against its device, and fixed frames. */
 async function measured(canvases) {
   const found = [];
   const browser = await launch();
   for (const { canvas } of canvases) {
     const file = join(DESIGN, canvas);
-    const device = new Map([...devicesOf(readFileSync(file, 'utf8'))].map(([l, d]) => [l, d.device]));
+    const html = readFileSync(file, 'utf8');
+    const device = new Map([...devicesOf(html)].map(([l, d]) => [l, d.device]));
     const narrow = await measure(browser, file, 1280);
     const wide = new Map((await measure(browser, file, 1920)).map((s) => [s.label, s.w]));
+    found.push(...notDrawn(canvas, html, narrow.map((s) => s.label)));
     for (const s of narrow) {
       const range = CONFIG.device_widths[device.get(s.label)];
       if (wide.get(s.label) !== s.w) {

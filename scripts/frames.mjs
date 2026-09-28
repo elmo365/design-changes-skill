@@ -13,6 +13,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CONFIG, DESIGN, owns, standingRules } from './lib/config.mjs';
+import { componentCanvases } from './lint.mjs';
 import { boards, boardTags, frameOf, BETWEEN } from './lib/canvas.mjs';
 
 const describe = (f) => (f.kind === 'component'
@@ -24,8 +25,11 @@ export default function frames(only) {
   if (!files.length) { console.error(only ? `No canvas ${only} in ${DESIGN}.` : `No canvases in ${DESIGN}.`); return 2; }
   const totals = new Map();
   let all = 0;
+  const components = componentCanvases(readdirSync(DESIGN).filter((f) => f.endsWith(CONFIG.canvas_ext))
+    .map((canvas) => ({ canvas, html: readFileSync(join(DESIGN, canvas), 'utf8') })));
   for (const file of files) {
     const html = readFileSync(join(DESIGN, file), 'utf8');
+    if (components.has(file)) { console.log(`\n${file} — component (a frame other canvases import), no boards of its own`); continue; }
     const cut = boards(html);
     const declared = new Map(boardTags(html).map((t) => [t.label, t.device]));
     const labels = [...cut.keys()].filter((l) => l !== BETWEEN);

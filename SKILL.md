@@ -85,6 +85,12 @@ The rule names are the project's to tune in `design-changes.json`
 (`board_attr`, `device_attr`, `device_widths`, `board_id`, `notes_file`); the
 requirements themselves are not optional.
 
+**A canvas another canvas imports as its frame** (`<dc-import name="X">`) is a
+component, not a screen: mirrored so the screens render, never demanded
+artboards. **A board must be in the page when the canvas runs**: one mounted
+only when a state switcher selects it cannot be pictured, diffed or vetted;
+`dc lint --measure` fails it and asks for the boards side by side.
+
 **Test a requirement against the design's source before demanding it.** A
 design may already carry what a rule asks for in another form — 173 of one
 project's 206 boards stated their device through the frame they were drawn in,

@@ -4,6 +4,16 @@ Releases are git tags; `dc version` prints the installed one. Versions follow
 semver: a change to what the skill requires of a design, or to how a config is
 read, is a major version.
 
+## v4.1.0 — 2026-09-28
+
+**`id_map`: ids chosen board by board.** A project that numbers its boards by
+hand (the page numbers of a site audit: 01A, 14B, H1, M2) could not tell lint
+so; `id_scheme` only counts. `id_map` in `design-changes.json` names the id
+per board (`"<canvas>::<label>": "14A"`) and, for a canvas with no artboards
+yet, the label its root element gets (`"<canvas>": "06 · Product Page"`).
+Lint proposes these first and the scheme for the rest; `DECIDE NOW` for
+`id_scheme` is raised only while an unnamed board has neither.
+
 ## v4.0.0 — 2026-09-27
 
 **Breaking: the board ↔ code map is verified links made by discovery. Code

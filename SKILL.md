@@ -125,8 +125,9 @@ call":
   whole; everything else still as the file). `"post"`, from older configs, is
   read as `"file"`.
 - `id_scheme` — `{"prefix": "K", "start": 1, "pad": 0}` and the like, the
-  moment any board lacks an id. With it set, lint names the exact id each
-  board gets, in the demand and in the console (`→ K7`).
+  moment any board lacks an id — or `id_map`, when the project names each
+  board's id itself (`{"<canvas>::<label>": "14A"}`). With either set, lint
+  names the exact id each board gets, in the demand and in the console (`→ K7`).
 
 Both are written to `design-changes.json` the moment the user answers; the
 next `dc lint` then delivers cleanly.
@@ -464,6 +465,7 @@ system — fix it, do not allow-list it.
 | `keep` | globs on paths under `design_dir` allowed besides the mirror and the skill's own; anything else is a foreign-file warning |
 | `demand_mode` | `"file"` or `"write"` — how demands reach the design (`"post"` is read as `"file"`); null: lint says `DECIDE NOW`, ask the user this turn |
 | `id_scheme` | `{prefix, start, pad}` — how a board with no id gets one; lint then proposes the exact id; null: lint says `DECIDE NOW` when a board lacks an id |
+| `id_map` | `{"<canvas>::<label>": "14A", "<canvas>": "06 · Product Page"}` — ids chosen board by board (a project that numbers boards by hand); lint proposes these first, the scheme for the rest; a bare canvas key is the root label a canvas with no artboards gets |
 | `projects` | several pairings in one repo: a list of entries, each overriding the top-level keys (own `project_id`, `project_name`, `design_dir`, …); commands then take `--design <dir>` / `--project <name>` |
 | `design_dir` | the mirror, relative to the root (`design`) |
 | `canvas_ext`, `board_attr` | a canvas file and its board attribute (`.dc.html`, `data-screen-label`) |

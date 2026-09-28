@@ -49,13 +49,16 @@ export const DEMAND_FILE = 'DEMAND.md';
 const SKILL_OWN = /^(manifest\.json|built-against(\.[0-9a-f]+\.bak)?\.json|SCREEN-CODE-MAP\.md|SCREEN-LINKS\.json|DEMAND\.md|\.diff-.*|screenshots(\/.*)?)$/;
 
 /** Findings in one canvas's source: [{canvas, board, rule, level, kind, fix}]. */
-export function lintCanvas(canvas, html) {
+export function lintCanvas(canvas, html, map = CONFIG.id_map) {
   const found = [];
   const add = (board, rule, kind, fix, level = 'fail') => found.push({ canvas, board, rule, level, kind, fix });
   const tags = boardTags(html);
   if (!tags.length) {
+    const root = map?.[canvas];
     add(null, 'no artboards', 'attribute',
-      `Make every screen in this canvas an artboard: on each screen's outermost element set ${CONFIG.board_attr}="<screen name>", draw it in its device frame (or set ${CONFIG.device_attr}="<${devices().join('|')}>"), and lead its caption with its id ("<id> · <SCREEN NAME>"). A canvas holding several screens in one element is split into one element per screen.`);
+      `Make every screen in this canvas an artboard: on each screen's outermost element set ${CONFIG.board_attr}="<screen name>", draw it in its device frame (or set ${CONFIG.device_attr}="<${devices().join('|')}>"), and lead its caption with its id ("<id> · <SCREEN NAME>"). A canvas holding several screens in one element is split into one element per screen.`
+      + (root ? ` This canvas is one screen: its outermost element gets ${CONFIG.board_attr}="${root}".` : ''));
+    if (root) found[found.length - 1].proposed = root.split(' · ')[0];
     return found;
   }
   const count = new Map();
@@ -88,8 +91,8 @@ export function lintCanvas(canvas, html) {
  * With an id scheme, every "no board id" finding carries the id it should get
  * (`proposed`), so the demand — or the approved write — names it exactly.
  */
-export function lintProject(canvases /* [{canvas, html}] */, scheme = CONFIG.id_scheme) {
-  const found = canvases.flatMap(({ canvas, html }) => lintCanvas(canvas, html));
+export function lintProject(canvases /* [{canvas, html}] */, scheme = CONFIG.id_scheme, map = CONFIG.id_map) {
+  const found = canvases.flatMap(({ canvas, html }) => lintCanvas(canvas, html, map));
   const ids = new Map();
   for (const { canvas, html } of canvases) {
     for (const [label, block] of boards(html)) {
@@ -106,9 +109,19 @@ export function lintProject(canvases /* [{canvas, html}] */, scheme = CONFIG.id_
         fix: `Board ids are unique across the project; ${id} is on ${where.join(', ')}. Give each board its own id.` });
     }
   }
+  // Hand-chosen ids first (id_map), the scheme's counter for the rest.
+  const mapped = new Set();
+  for (const f of found) {
+    if (f.rule !== 'no board id') continue;
+    const id = map?.[`${f.canvas}::${f.board}`];
+    if (!id) continue;
+    f.proposed = id;
+    mapped.add(id);
+    f.fix = `Lead this board's caption (or its label) with "${id} · ${f.board.toUpperCase()}" — ${id} is the id the project gives this board (id_map).`;
+  }
   if (scheme) {
-    const unnamed = found.filter((f) => f.rule === 'no board id');
-    const fresh = nextIds(scheme, [...ids.keys()], unnamed.length);
+    const unnamed = found.filter((f) => f.rule === 'no board id' && !f.proposed);
+    const fresh = nextIds(scheme, [...ids.keys(), ...mapped], unnamed.length);
     unnamed.forEach((f, i) => {
       f.proposed = fresh[i];
       f.fix = `Lead this board's caption (or its label) with "${fresh[i]} · ${f.board.toUpperCase()}" — ${fresh[i]} is its id under the project's scheme.`;
@@ -213,8 +226,8 @@ export function decisions(findings, cfg = CONFIG) {
   if (owed.length && !cfg.demand_mode) {
     out.push(`DECIDE NOW  demand_mode is unset in design-changes.json — ask the user THIS TURN (an interactive question, not a note): "file" (the demand written into the design project as DEMAND-${REPO}.md; the user tells the design agent, in any chat, "Read DEMAND-${REPO}.md and apply it") or "write" (Claude Code writes approved attribute fixes to canvases small enough to send whole; everything else still goes as the file). Write the answer to the config, then deliver. Never park it in a handoff.`);
   }
-  if (owed.some((f) => f.rule === 'no board id') && !cfg.id_scheme) {
-    out.push('DECIDE NOW  id_scheme is unset and boards have no id — ask the user THIS TURN for the scheme ({"prefix": "K", "start": 1, "pad": 0} → K1, K2…), write it to the config, run lint again: every board then gets its proposed id in the demand.');
+  if (owed.some((f) => f.rule === 'no board id' && !f.proposed) && !cfg.id_scheme) {
+    out.push('DECIDE NOW  id_scheme is unset and boards have no id — ask the user THIS TURN for the scheme ({"prefix": "K", "start": 1, "pad": 0} → K1, K2…), or name each board\'s id in id_map ({"<canvas>::<label>": "14A"}), write it to the config, run lint again: every board then gets its proposed id in the demand.');
   }
   return out;
 }

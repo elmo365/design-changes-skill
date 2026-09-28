@@ -90,6 +90,12 @@ export const DEFAULTS = {
   // {"prefix": "K", "start": 1, "pad": 0} → K1, K2… Null: undecided — `dc lint`
   // says to ask the user the moment a board lacks an id.
   id_scheme: null,
+  // Ids chosen board by board, when the project numbers its boards by hand
+  // (page numbers of an audit, say) instead of a counter:
+  // {"<canvas>::<label>": "14A", "<canvas>": "06 · Product Page"}. A bare
+  // canvas key names the label its root element gets when the canvas has no
+  // artboards yet. Lint proposes these first and the scheme for the rest.
+  id_map: null,
   // A node_modules to borrow Playwright/pixelmatch/pngjs from, when the
   // skill's own is not installed. Relative to the root.
   node_modules_from: null,

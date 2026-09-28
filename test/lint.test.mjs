@@ -69,6 +69,22 @@ test('with an id scheme, every board without an id is told the id it gets, skipp
   assert.match(found[0].fix, /"K2 · CART"/);
 });
 
+test('with an id map, a board gets the id the project chose; the scheme covers the rest; a bare canvas key names a root label', () => {
+  const html = `<div data-screen-label="Home" data-device="phone"><p>Home</p></div>
+<div data-screen-label="Cart" data-device="phone"><p>Cart</p></div>`;
+  const map = { 'k.dc.html::Home': '01A', 'one.dc.html': '06 · Product Page' };
+  const found = lintProject([{ canvas: 'k.dc.html', html }, { canvas: 'one.dc.html', html: '<main></main>' }], { prefix: 'K', start: 1 }, map);
+  const ids = found.filter((f) => f.rule === 'no board id').map((f) => [f.board, f.proposed]);
+  assert.deepEqual(ids, [['Home', '01A'], ['Cart', 'K1']]);
+  assert.match(found.find((f) => f.board === 'Home').fix, /"01A · HOME"/);
+  const root = found.find((f) => f.rule === 'no artboards');
+  assert.equal(root.proposed, '06');
+  assert.match(root.fix, /data-screen-label="06 · Product Page"/);
+  // every unnamed board mapped: no scheme needed, nothing to decide
+  const all = lintProject([{ canvas: 'k.dc.html', html }], null, { 'k.dc.html::Home': '01A', 'k.dc.html::Cart': '08' });
+  assert.deepEqual(decisions(all, { demand_mode: 'file', id_scheme: null }), []);
+});
+
 test('reference and repo-side findings never enter the demand', () => {
   const found = [
     { canvas: 'mine.dc.html', board: 'A', rule: 'no device', level: 'fail', kind: 'attribute', fix: 'x' },

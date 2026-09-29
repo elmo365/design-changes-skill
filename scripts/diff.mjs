@@ -20,7 +20,7 @@
 import { mkdirSync, readFileSync, writeFileSync, rmSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, basename, relative } from 'node:path';
 import { CONFIG, ROOT, DESIGN, REPO, git, pkg, esm, opt, changedPaths, standingRules, owns } from './lib/config.mjs';
-import { boards, devicesOf, betweenPieces, copyLines, styleChanges, bagMinus, boardId, sha, BETWEEN } from './lib/canvas.mjs';
+import { boards, devicesOf, betweenPieces, copyLines, styleChanges, bagMinus, boardId, sha, BETWEEN, decode } from './lib/canvas.mjs';
 import { loadLinks, audit } from './links.mjs';
 import { launch, shoot, scaleFor } from './lib/shoot.mjs';
 
@@ -153,14 +153,23 @@ export function writeMap() {
   return `${rel(MAP)} regenerated: ${rows.length} boards owned, ${counts.built} built, ${counts.partial} partial, ${counts.absent} absent, ${counts.none} not yet linked, ${counts.recheck} to recheck, ${stale} changed since built, ${refRows.length} reference, ${undrawnTotal} screens no link points at`;
 }
 
+/**
+ * Labels in the source that no cut board carries. A source label is attribute
+ * text (`Users &amp; Accounts`) and a cut label is decoded, so both sides are
+ * compared decoded — else every label holding an entity reads as LOST.
+ */
+export function lostLabels(text, cut, attr = CONFIG.board_attr) {
+  const raw = [...text.matchAll(new RegExp(`${attr}="([^"]+)"`, 'g'))].map((m) => decode(m[1]));
+  return { raw, lost: raw.filter((l) => !cut.includes(l)) };
+}
+
 // ---- the commands ----------------------------------------------------------
 export function listBoards(canvas) {
   const text = readFileSync(existsSync(canvas) ? canvas : join(DESIGN, canvas), 'utf8');
   const found = boards(text);
   const cut = [...found.keys()].filter((k) => k !== BETWEEN);
-  const raw = [...text.matchAll(new RegExp(`${CONFIG.board_attr}="([^"]+)"`, 'g'))].map((m) => m[1]);
+  const { raw, lost } = lostLabels(text, cut);
   for (const k of cut) console.log(`${boardId(k, found.get(k)) ?? '—'}\t${k}`);
-  const lost = raw.filter((l) => !cut.includes(l));
   console.log(`${cut.length} boards cut, ${raw.length} labels in the source${lost.length ? ` — LOST: ${lost.join(', ')}` : ''}`);
   if (!cut.length) console.log(`No artboards: every screen must be one (${CONFIG.board_attr}). \`dc lint\` writes the demand.`);
   return lost.length || !cut.length ? 1 : 0;

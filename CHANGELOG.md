@@ -4,6 +4,13 @@ Releases are git tags; `dc version` prints the installed one. Versions follow
 semver: a change to what the skill requires of a design, or to how a config is
 read, is a major version.
 
+## v4.3.1 — 2026-09-29
+
+**`dc boards` no longer reports an entity label LOST.** The source labels were
+compared raw (`Users &amp; Accounts`) against decoded cut labels, so every
+label holding an entity was printed LOST and the command exited 1 though the
+board was cut. `lostLabels` compares both sides decoded; tested.
+
 ## v4.3.0 — 2026-09-29
 
 **`--width` on `dc render` and `dc vet`.** A board built fluid with no fixed

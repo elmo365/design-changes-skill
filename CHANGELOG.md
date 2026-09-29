@@ -4,6 +4,15 @@ Releases are git tags; `dc version` prints the installed one. Versions follow
 semver: a change to what the skill requires of a design, or to how a config is
 read, is a major version.
 
+## v4.3.0 — 2026-09-29
+
+**`--width` on `dc render` and `dc vet`.** A board built fluid with no fixed
+frame follows the window, so it could only ever be drawn at the shooting
+window's default width. `--width <css px>` opens the canvas at that width and
+keeps it, and the board is re-measured after the resize — so a shop header
+captured live at 726 is compared with the board drawn at 726. `viewportFor`
+is the pure helper behind it, tested.
+
 ## v4.2.0 — 2026-09-28
 
 **Component canvases, and boards a browser does not draw.**

@@ -53,7 +53,7 @@ const captureHint = () => (CONFIG.platform && CAPTURE[CONFIG.platform]
 export default async function run(canvas, label) {
   const shot = opt('--shot');
   if (!canvas || !label || !shot) {
-    console.error(`usage: dc vet <canvas> "<board label>" --shot <screenshot.png> [--out <dir>]\n${captureHint()}`);
+    console.error(`usage: dc vet <canvas> "<board label>" --shot <screenshot.png> [--out <dir>] [--width <css px>]\n${captureHint()}`);
     return 2;
   }
   if (!existsSync(resolve(shot))) { console.error(`No screenshot at ${shot}.\n${captureHint()}`); return 2; }
@@ -67,7 +67,9 @@ export default async function run(canvas, label) {
   const block = boards(html).get(label);
   if (!block) { console.error(`No board "${label}" in ${canvas}.`); return 1; }
   const device = devicesOf(html).get(label)?.device ?? null;
-  const board = (await renderBoards(canvas, [label], out))[label];
+  const width = opt('--width') ? +opt('--width') : null;
+  if (opt('--width') && !(width > 0)) { console.error('--width takes a CSS pixel width, e.g. --width 726'); return 2; }
+  const board = (await renderBoards(canvas, [label], out, null, width))[label];
   if (!board) { console.error(`Board "${label}" did not draw in a browser.`); return 1; }
 
   const layout = sheetLayout(board.w, board.h);
@@ -101,7 +103,7 @@ export default async function run(canvas, label) {
   const md = [
     `# Vet · ${label}`,
     '',
-    `Board ${board.w}×${board.h} CSS px (${device ?? 'no device declared'}, rendered at ${board.scale}×), app ${app.w}×${app.h} px scaled to the board's width — ${layout.wide ? 'stacked, board above app' : 'side by side'} in \`${sheet.replace(/\\/g, '/')}\`. ${BANDS} bands down each image, each ${100 / BANDS}% of that image's own height: band n is the same relative height on both.`,
+    `Board ${board.w}×${board.h} CSS px (${device ?? 'no device declared'}, rendered at ${board.scale}×${width ? ` in a ${width}px window` : ''}), app ${app.w}×${app.h} px scaled to the board's width — ${layout.wide ? 'stacked, board above app' : 'side by side'} in \`${sheet.replace(/\\/g, '/')}\`. ${BANDS} bands down each image, each ${100 / BANDS}% of that image's own height: band n is the same relative height on both.`,
     '',
     'Open the sheet. For every element, a verdict: **same**, **differs** (say how), or **missing**. Copy first, then layout, spacing, type, colour, icons. The board is one width; the app must hold its structure at every width, not its pixels.',
     '',

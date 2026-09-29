@@ -419,7 +419,10 @@ The picture is how the board **looks**; the source says what it **is**. A
 render serves the canvas over a local HTTP server so the design runtime can
 load what the board imports (its device frame); a board that renders with no
 frame, or at a width its source does not state, is a rendering fault to fix in
-the skill — never a fact about the design.
+the skill — never a fact about the design. A board built fluid with no fixed
+frame follows the window: render and vet it with `--width <css px>`, the
+width the app was captured at (`dc render … --width 726`,
+`dc vet … --shot shot.png --width 726`), one pair per width you compare.
 
 ## After building a screen
 

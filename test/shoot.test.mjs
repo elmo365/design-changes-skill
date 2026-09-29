@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { urlFor } from '../scripts/lib/shoot.mjs';
+import { urlFor, viewportFor } from '../scripts/lib/shoot.mjs';
 
 const dir = mkdtempSync(join(tmpdir(), 'dc-serve-'));
 writeFileSync(join(dir, 'My canvas.dc.html'), '<x-import from="./frame.jsx"></x-import>');
@@ -27,4 +27,11 @@ test('the server serves nothing outside the canvas folder', async () => {
   const base = new URL(url).origin;
   assert.equal((await fetch(`${base}/missing.jsx`)).status, 404);
   assert.notEqual((await fetch(`${base}/..%2f..%2fwindows/win.ini`)).status, 200);
+});
+
+test('the shooting window holds the largest board, or is exactly the stated width for fluid boards', () => {
+  const found = [{ w: 1200, h: 107 }, { w: 380, h: 760 }];
+  assert.deepEqual(viewportFor(found), { width: 1264, height: 824 });
+  assert.deepEqual(viewportFor(found, 726), { width: 726, height: 824 });
+  assert.deepEqual(viewportFor([{ w: 100, h: 100 }]), { width: 320, height: 320 });
 });

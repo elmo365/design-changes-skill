@@ -34,8 +34,8 @@ const HELP = `design-changes — what moved in the design, and what it touches i
   links                        every link re-checked; boards not yet linked
   record <listing.json>        record the sync in manifest.json
   plan                         every board named in the plan doc
-  render <canvas> "<label>"…   artboards to PNG
-  vet <canvas> "<label>" --shot <app.png>
+  render <canvas> "<label>"…   artboards to PNG (--width <px>: fluid boards at a window width)
+  vet <canvas> "<label>" --shot <app.png> [--width <px>]
                                app screenshot beside its board + copy checklist
   mark "<canvas>::<label>"     record code as built against the board as it is
   version                      the installed skill's version

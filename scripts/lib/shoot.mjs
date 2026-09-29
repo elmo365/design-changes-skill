@@ -80,11 +80,24 @@ export async function measure(browser, file, windowWidth = 1280) {
 }
 
 /**
+ * The window to shoot in: wide enough to hold the largest board (plus a
+ * margin), tall enough for the tallest — unless a window width is stated,
+ * in which case the width is exactly that: a board that follows the window
+ * (no fixed frame) is then drawn at the width the app capture was made at.
+ */
+export function viewportFor(found /* [{w, h}] */, windowWidth = null) {
+  const width = windowWidth ?? Math.max(320, ...found.map((s) => s.w + MARGIN));
+  const height = Math.min(MAX_H, Math.max(320, ...found.map((s) => s.h + MARGIN)));
+  return { width, height };
+}
+
+/**
  * Shoot boards from one canvas file at one scale.
  * items: [{label, dest}] → {label: {path, w, h} | null}, w/h in CSS px.
+ * windowWidth: open the canvas at this width and keep it (fluid boards).
  */
-export async function shoot(browser, file, items, scale) {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: scale, reducedMotion: 'reduce' });
+export async function shoot(browser, file, items, scale, windowWidth = null) {
+  const context = await browser.newContext({ viewport: { width: windowWidth ?? 1280, height: 800 }, deviceScaleFactor: scale, reducedMotion: 'reduce' });
   const page = await context.newPage();
   await open(page, file);
   const sizes = {};
@@ -94,10 +107,13 @@ export async function shoot(browser, file, items, scale) {
   }
   const found = Object.values(sizes).filter(Boolean);
   if (found.length) {
-    const width = Math.max(320, ...found.map((s) => s.w + MARGIN));
-    const height = Math.min(MAX_H, Math.max(320, ...found.map((s) => s.h + MARGIN)));
-    await page.setViewportSize({ width, height });
+    await page.setViewportSize(viewportFor(found, windowWidth));
     await page.waitForTimeout(300);
+    // A fluid board re-flows with the window: measure again after the resize.
+    for (const { label } of items) {
+      if (!sizes[label]) continue;
+      sizes[label] = await page.locator(boardSelector(label)).first().evaluate((e) => ({ w: e.offsetWidth, h: e.offsetHeight }));
+    }
   }
   const result = {};
   for (const { label, dest } of items) {

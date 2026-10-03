@@ -1,12 +1,14 @@
 {
   "name": "design-changes-skill",
-  "version": "4.3.1",
+  "version": "4.4.0",
   "private": true,
   "license": "MIT",
   "author": "Ricardo Elmo Diane (https://github.com/elmo365)",
   "description": "Claude Code skill: what moved in a Claude Design project, and what it touches in code.",
   "type": "module",
-  "bin": { "dc": "scripts/dc.mjs" },
+  "bin": {
+    "dc": "scripts/dc.mjs"
+  },
   "scripts": {
     "postinstall": "playwright install chromium",
     "test": "node --test"
@@ -16,5 +18,7 @@
     "pixelmatch": "^7.1.0",
     "pngjs": "^7.0.0"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }

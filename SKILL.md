@@ -16,7 +16,7 @@ sync, and sends the design side a demand when it is missing.
 
 ## Standing rules — every invocation, every screen
 
-These two rules apply to **every** board read, screen built and screen vetted
+These three rules apply to **every** board read, screen built and screen vetted
 through this skill, on every run. They are not context that fades; re-apply
 them each time. The commands repeat them in their own output so they cannot be
 skimmed past.
@@ -33,6 +33,19 @@ skimmed past.
    Every name, number, price, date and list on a board is sample ink. Code
    never ports it: each element is wired to live data, or left out until it
    can be. A hardcoded board value in code is a defect, not a scaffold.
+
+3. **The owner's rulings outrank a board — and a board may lag them.** A
+   design is redrawn later than rulings are made, so a board can still draw
+   what the owner has since ruled out (one drew a map in a fifth of the
+   screen after the owner had ruled every map at least half). Read every
+   proportion on a board as a **share of the screen**, check it against the
+   project's ruling documents (`rulings` in the config, printed after these
+   rules by every command), and never port a pixel height or a proportion a
+   ruling overrides. Where a board and a ruling disagree, build the ruling
+   and say so; do not "fix" the ruling to match the board. Before changing
+   such a thing across screens, **audit each board first** (render it,
+   measure the share, note what the screen is for) — some screens differ on
+   purpose, and a blind global fix is its own defect.
 
 The narrowing runs in layers; Playwright comes last because it brings vision,
 not narrowing:
@@ -481,6 +494,7 @@ system — fix it, do not allow-list it.
 | `device_attr` | the attribute a board declares its device in (`data-device`); it wins over the device read from the board's frame |
 | `device_widths` | per device, the CSS px width range of its board (`{"phone": [240, 600], "tablet": [600, 1366], "desktop": [1024, 100000]}`); a frame's width is read as the device whose range holds it; its keys are the devices a board may declare. Mockup widths — never sizes for code |
 | `device_scale` | pixel scale a board renders at, by device (`{"phone": 2, "tablet": 2, "desktop": 1, "default": 2}`) |
+| `rulings` | the project's ruling documents, relative to the root (`["docs/maps.md"]`) — the owner's decisions that outrank boards; listed after the standing rules on every command (standing rule 3) |
 | `platform` | what the app runs on — `android`, `ios`, `desktop`, `web`; `dc vet` gives the capture method |
 | `notes_file` | the design side's notes file in `design_dir` (`NEXT.md`); `null` = not checked |
 | `rename` | project path → local path: `[{match, to}]`, `$1` a group, `{slug:1}` kebab-cased; `to: null` = not mirrored |

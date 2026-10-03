@@ -4,6 +4,24 @@ Releases are git tags; `dc version` prints the installed one. Versions follow
 semver: a change to what the skill requires of a design, or to how a config is
 read, is a major version.
 
+## v4.4.0 — 2026-10-03
+
+**A third standing rule: the owner's rulings outrank a board, and a board may
+lag them.**
+
+A design is redrawn later than rulings are made. One project's boards still
+drew a map in a fifth of the screen after the owner had ruled every map at
+least half, and the skill — which made the board the authority — let it be
+built. Now:
+
+- `STANDING_RULES` has a third rule, stamped into every command's output: read
+  each proportion on a board as a share of the screen, check it against the
+  project's rulings, never port a pixel height or a stale proportion — and
+  audit each board before a change across screens, never a blind global fix.
+- `rulings` (config): the project's ruling documents, listed after the
+  standing rules by every command.
+- SKILL.md says it under *Standing rules*; the config table lists `rulings`.
+
 ## v4.3.1 — 2026-09-29
 
 **`dc boards` no longer reports an entity label LOST.** The source labels were

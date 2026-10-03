@@ -35,6 +35,11 @@ export const DEFAULTS = {
   device_widths: { phone: [240, 600], tablet: [600, 1366], desktop: [1024, 100000] },
   // Pixel scale a board is rendered at, by its device.
   device_scale: { phone: 2, tablet: 2, desktop: 1, default: 2 },
+  // The project's ruling documents, relative to the root — where the owner's
+  // decisions that outrank the design are written (a map's least share of
+  // the screen, say). Printed after the standing rules on every command, so a
+  // board that has not caught up with a ruling is never built from silently.
+  rulings: [],
   // Project path → local path. First match wins; unmatched paths keep their
   // name. `$1` is a group; `{slug:1}` is that group kebab-cased.
   rename: [],
@@ -106,8 +111,17 @@ export const DEFAULTS = {
 export const STANDING_RULES = [
   'A board is a static mockup at one width; the implementation is fluid at every width (a board built fluid: port its fluid rule, not its rendered width).',
   "A board's values are placeholders; every value in the implementation comes from real data — wired or left out, never ported.",
+  "The owner's rulings outrank a board, and a board may lag them: read each proportion on it as a share of the screen, check it against the project's rulings, and never port a pixel height or a stale proportion.",
 ];
-export const standingRules = (prefix = '⚑ ') => STANDING_RULES.map((r) => `${prefix}${r}`).join('\n');
+
+/** The standing rules, then the project's ruling documents when it lists any
+ *  (`rulings`) — so a board that lags a ruling is never built from silently. */
+export const standingRules = (prefix = '⚑ ') => {
+  const lines = STANDING_RULES.map((r) => `${prefix}${r}`);
+  const rulings = CONFIG?.rulings ?? [];
+  if (rulings.length) lines.push(`${prefix}Rulings that override boards: ${rulings.join(', ')}`);
+  return lines.join('\n');
+};
 
 const argv = process.argv.slice(2);
 export const opt = (name, fallback = null) => {

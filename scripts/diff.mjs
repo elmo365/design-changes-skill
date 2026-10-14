@@ -293,22 +293,24 @@ export default async function run() {
     // sized to the board (lib/shoot.mjs).
     const snap = async (file, label, dest, scale) => Boolean((await shoot(browser, file, [{ label, dest }], scale))[label]);
     // Staged beside the canvas so its relative assets still resolve.
-    const staged = (text, tag, file) => { const p = join(DESIGN, `.diff-${tag}-${file}`); writeFileSync(p, text); return p; };
     say('## Pictures — only the changed boards');
+    // A staged copy is removed on every path, and one board that fails to draw
+    // is reported and skipped: it never stops the other pictures or the map,
+    // and never leaves a .diff-* file in design_dir to be committed.
+    try {
     for (const item of toRender) {
       const slug = `${basename(item.file, CONFIG.canvas_ext)}--${item.board.replace(/[^A-Za-z0-9-]+/g, '_')}`;
       const newPng = join(shots, `${slug}.new.png`);
+      try {
       const newText = to === null ? readFileSync(join(ROOT, item.path), 'utf8') : readAt(to, item.path);
       const scale = scaleFor(devicesOf(newText).get(item.board)?.device);
-      const newFile = to === null ? join(ROOT, item.path) : staged(newText, 'new', item.file);
-      const drawn = await snap(newFile, item.board, newPng, scale);
-      if (to !== null) rmSync(newFile);
+      const drawn = to === null
+        ? await snap(join(ROOT, item.path), item.board, newPng, scale)
+        : await withStaged(join(DESIGN, `.diff-new-${item.file}`), newText, (f) => snap(f, item.board, newPng, scale));
       if (!drawn) { say(`- ${item.board}: not drawn — no element carries its label in a browser`); continue; }
       if (!item.old) { say(`- ${item.board}: new board → ${basename(newPng)}`); continue; }
       const oldPng = join(shots, `${slug}.old.png`);
-      const oldFile = staged(item.old, 'old', item.file);
-      const drewOld = await snap(oldFile, item.board, oldPng, scale);
-      rmSync(oldFile);
+      const drewOld = await withStaged(join(DESIGN, `.diff-old-${item.file}`), item.old, (f) => snap(f, item.board, oldPng, scale));
       if (!drewOld) { say(`- ${item.board}: old version not drawn → ${basename(newPng)} only`); continue; }
       const a = PNG.sync.read(readFileSync(oldPng)), b = PNG.sync.read(readFileSync(newPng));
       const w = Math.max(a.width, b.width), h = Math.max(a.height, b.height);
@@ -322,8 +324,13 @@ export default async function run() {
       const shape = !regions.length ? 'rendering noise only' : regions.length === 1 ? 'one region' : `${regions.length} regions`;
       say(`- ${item.board}: ${share.toFixed(1)}% of pixels, ${shape}${a.height !== b.height ? ` · height ${a.height} → ${b.height}px` : ''} → ${basename(diffPng)}`);
       for (const r of regions.slice(0, 6)) say(`  - region at ${r.x},${r.y} size ${r.w}×${r.h}`);
+      } catch (err) {
+        say(`- ${item.board}: picture failed — ${String(err && err.message || err).split('\n')[0]} (skipped; rerun dc diff for it)`);
+      }
     }
-    await browser.close();
+    } finally {
+      await browser.close().catch(() => {});
+    }
   }
 
   // The map is regenerated on every run, so no run leaves it describing a
@@ -334,6 +341,20 @@ export default async function run() {
   console.log(text);
   if (out) writeFileSync(out, `${text}\n`);
   return 0;
+}
+
+/**
+ * Write `text` to `file` (beside the canvas, so its relative assets resolve), run
+ * `fn(file)`, and remove the file whatever happens - a staged copy must never be
+ * left in design_dir to be committed.
+ */
+export async function withStaged(file, text, fn) {
+  writeFileSync(file, text);
+  try {
+    return await fn(file);
+  } finally {
+    try { rmSync(file, { force: true }); } catch { /* already gone */ }
+  }
 }
 
 /** Changed pixels clustered on a 16 px grid: one moved block reads as one region. */

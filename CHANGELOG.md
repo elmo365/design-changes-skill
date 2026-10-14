@@ -4,6 +4,11 @@ Releases are git tags; `dc version` prints the installed one. Versions follow
 semver: a change to what the skill requires of a design, or to how a config is
 read, is a major version.
 
+## v4.3.2 — 2026-10-14
+
+- `dc diff`: a board whose picture fails to render is reported ("picture failed — …") and skipped; the other pictures and the map still run, and the browser is always closed.
+- `dc diff`: the old/new canvas copies staged beside the mirror (`.diff-old-*`, `.diff-new-*`) are removed on every path (`withStaged`), so a crash can no longer leave one in design_dir to be committed (seen 2026-10-14 on a 1 MB canvas).
+
 ## v4.3.1 — 2026-09-29
 
 **`dc boards` no longer reports an entity label LOST.** The source labels were

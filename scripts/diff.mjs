@@ -20,7 +20,7 @@
 import { mkdirSync, readFileSync, writeFileSync, rmSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, basename, relative } from 'node:path';
 import { CONFIG, ROOT, DESIGN, REPO, git, pkg, esm, opt, changedPaths, standingRules, owns } from './lib/config.mjs';
-import { boards, devicesOf, betweenPieces, copyLines, styleChanges, bagMinus, boardId, sha, BETWEEN, decode } from './lib/canvas.mjs';
+import { boards, devicesOf, betweenPieces, copyLines, styleChanges, bagMinus, boardId, sha, BETWEEN, decode, holeValue } from './lib/canvas.mjs';
 import { loadLinks, audit } from './links.mjs';
 import { launch, shoot, scaleFor } from './lib/shoot.mjs';
 
@@ -159,7 +159,7 @@ export function writeMap() {
  * compared decoded — else every label holding an entity reads as LOST.
  */
 export function lostLabels(text, cut, attr = CONFIG.board_attr) {
-  const raw = [...text.matchAll(new RegExp(`${attr}="([^"]+)"`, 'g'))].map((m) => decode(m[1]));
+  const raw = [...text.matchAll(new RegExp(`${attr}="([^"]+)"`, 'g'))].map((m) => decode(holeValue(text, m[1])));
   return { raw, lost: raw.filter((l) => !cut.includes(l)) };
 }
 

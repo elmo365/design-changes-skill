@@ -18,10 +18,32 @@ export const BETWEEN = '(between boards)';
 const boardOpen = () => new RegExp(`<([a-zA-Z][\\w-]*)\\b[^>]*${CONFIG.board_attr}="([^"]+)"[^>]*>`, 'g');
 const attrOf = (tag, name) => new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1] ?? null;
 
+/**
+ * An attribute written as a template hole (`data-screen-label="{{ k9Label }}"`)
+ * resolved to the value the canvas gives it when it runs on its own.
+ *
+ * A canvas that another canvas embeds (Home inside a "reset lands on Home"
+ * board) has to drop its board label while embedded, or boards would nest; it
+ * does that with a hole whose value is `this.props.embed ? null : 'K9 · Home'`.
+ * Standing alone the label is that string literal, so the hole is read from
+ * the canvas's logic: the last non-empty string literal of `<name>:` there.
+ * A hole with no such literal stays as written, and lint reports it.
+ */
+export function holeValue(html, value) {
+  const hole = /^\{\{\s*([\w$]+)\s*\}\}$/.exec(value ?? '');
+  if (!hole) return value;
+  const logic = /<script[^>]*data-dc-script[^>]*>([\s\S]*?)<\/script>/.exec(html)?.[1] ?? '';
+  const prop = new RegExp(`(?:^|[\\s,{])${hole[1]}\\s*:\\s*([^\\n]*)`).exec(logic)?.[1] ?? '';
+  const literals = [...prop.matchAll(/'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"/g)]
+    .map((m) => m[1] ?? m[2]).filter((s) => s !== '');
+  return literals.length ? literals[literals.length - 1] : value;
+}
+
 /** Every board's opening tag, in source order: its label and declared device. */
 export function boardTags(html) {
   return [...html.matchAll(boardOpen())].map((m) => ({
-    label: decode(m[2]), tag: m[1], index: m.index, device: attrOf(m[0], CONFIG.device_attr),
+    label: decode(holeValue(html, m[2])), tag: m[1], index: m.index,
+    device: holeValue(html, attrOf(m[0], CONFIG.device_attr)),
   }));
 }
 
@@ -61,7 +83,7 @@ export function boards(html) {
     }
     if (i > cap) { i = cap; closed = false; }
     between += claim(prev, html.slice(last, m.index), found);
-    prev = decode(m[2]);
+    prev = decode(holeValue(html, m[2]));
     found.set(prev, html.slice(m.index, i));
     if (!closed) found.unclosed.add(prev);
     last = i;

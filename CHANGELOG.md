@@ -4,6 +4,10 @@ Releases are git tags; `dc version` prints the installed one. Versions follow
 semver: a change to what the skill requires of a design, or to how a config is
 read, is a major version.
 
+## v4.4.2 — 2026-10-15
+
+- A board label or device written as a template hole (`data-screen-label="{{ k9Label }}"`) is read as the value the canvas gives it standing alone: the last non-empty string literal of that name in the canvas logic (`k9Label: this.props.embed ? null : 'K9 · Home — portrait'`). A canvas embedded by another (Home inside a "reset lands on Home" board) drops its label while embedded so boards never nest; lint used to fail it as "no board id", "unknown device" and "not drawn". A hole with no literal is still reported.
+
 ## v4.4.1 — 2026-10-14
 
 - `dc diff`: a board whose picture fails to render is reported ("picture failed — …") and skipped; the other pictures and the map still run, and the browser is always closed.

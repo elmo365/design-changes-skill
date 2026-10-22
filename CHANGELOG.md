@@ -4,6 +4,10 @@ Releases are git tags; `dc version` prints the installed one. Versions follow
 semver: a change to what the skill requires of a design, or to how a config is
 read, is a major version.
 
+## v4.5.0 — 2026-10-22
+
+**Demands are sent and driven by Claude Code in the browser** (owner, 22 Oct 2026). After the demand file is written, Claude Code opens the design project in the user's Chrome (Claude in Chrome), sends "Read DEMAND-<repo>.md in this project and apply it." itself, answers the design agent's questions from the demand (asking the user only what the demand does not settle), checks every demanded item on its board after the sync, and follows up in the same chat until lint and the board check pass. Broken browser tools are fixed (load or enable the tools, have the extension connected or installed with the user's yes, or add a Playwright MCP); handing the user the line to paste is the last resort, only when they decline every route.
+
 ## v4.4.2 — 2026-10-15
 
 - A board label or device written as a template hole (`data-screen-label="{{ k9Label }}"`) is read as the value the canvas gives it standing alone: the last non-empty string literal of that name in the canvas logic (`k9Label: this.props.embed ? null : 'K9 · Home — portrait'`). A canvas embedded by another (Home inside a "reset lands on Home" board) drops its label while embedded so boards never nest; lint used to fail it as "no board id", "unknown device" and "not drawn". A hole with no literal is still reported.

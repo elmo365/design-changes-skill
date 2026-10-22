@@ -1,6 +1,6 @@
 ---
 name: design-changes
-description: Mirror a Claude Design project into a repo, hold the design to the structure the skill requires (artboards, board ids, a device per board — its frame or a declared one) and demand fixes from the design side as a file written into the design project through the claude-design MCP when it falls short, find exactly what changed — which files, which boards, which copy and style, how it looks (Playwright), and which code it affects — keep a board↔code map made by discovery with the code-discovery skill and claude-context (verified links in SCREEN-LINKS.json, re-checked every run; code comments are never the map), and vet a built screen against its board (app screenshot beside the rendered artboard, copy checklist). Standing rules travel with every use — a board is a static mockup, code is fluid at every width (unless the board itself is fluid, then port its fluid rules); board values are placeholders, code shows real data only. Use at the start of any design-facing session, whenever the design is said to have moved, before building or ticking a screen against an artboard, after building one (mark it built against its board), and in UI testing to vet screens against the design. First run in a project sets it up through the claude-design MCP.
+description: Mirror a Claude Design project into a repo, hold the design to the structure the skill requires (artboards, board ids, a device per board — its frame or a declared one) and demand fixes from the design side as a file written into the design project through the claude-design MCP when it falls short, then sending it in the design chat itself through Claude in Chrome and driving it until it is met, find exactly what changed — which files, which boards, which copy and style, how it looks (Playwright), and which code it affects — keep a board↔code map made by discovery with the code-discovery skill and claude-context (verified links in SCREEN-LINKS.json, re-checked every run; code comments are never the map), and vet a built screen against its board (app screenshot beside the rendered artboard, copy checklist). Standing rules travel with every use — a board is a static mockup, code is fluid at every width (unless the board itself is fluid, then port its fluid rules); board values are placeholders, code shows real data only. Use at the start of any design-facing session, whenever the design is said to have moved, before building or ticking a screen against an artboard, after building one (mark it built against its board), and in UI testing to vet screens against the design. First run in a project sets it up through the claude-design MCP.
 ---
 
 # design-changes — what moved in the design, and what it touches in code
@@ -179,10 +179,43 @@ Delivering a demand:
    (`"0"` for a new file). `write_files` without a plan token is refused.
 4. `write_files(project_id, plan_token, files: [{path, data, if_match}])`.
    A correction inside the token's ~15 minutes reuses it with the new etag.
-5. Give the user **the one line to send**, in any chat of the design project:
-   *"Read DEMAND-<repo_name>.md in this project and apply it."* The agent does
-   nothing until someone sends it.
-6. The next sync's lint says whether it was met; when nothing is owed, write
+5. **Send it yourself, in the browser, and drive it until it is met** (owner,
+   22 Oct 2026: send the demand file, then open Chrome and drive the design
+   chat; never hand the user a prompt to paste). The design agent does nothing
+   until someone sends it the line, so Claude Code sends it through **Claude in
+   Chrome** (`mcp__claude-in-chrome__*`, the user's own signed-in Chrome):
+   1. Load the browser tools in **one** ToolSearch call (`tabs_context_mcp`,
+      `tabs_create_mcp`, `navigate`, `computer`, `find`, `read_page`,
+      `tabs_close_mcp`); call `tabs_context_mcp` first and work in a new tab.
+   2. Open the project (`open_url` from `render_preview`, or
+      `https://claude.ai/design/p/<project_id>`), find the chat box and send:
+      *"Read DEMAND-<repo_name>.md in this project and apply it."*
+   3. **Stay with it.** Watch the chat (a screenshot every few minutes) and the
+      canvas etags (`list_files`). When the agent stops to ask, answer from the
+      demand's own text. When it asks what the demand does not settle (a design
+      choice beyond it, the user's usage limit, spending their quota), ask the
+      user in this session (interview-me), then answer in the chat for them.
+   4. When the canvas changes and the agent says it is done: run the sync
+      (fetch, lint, render) and check each demanded item on its board. An item
+      missing or drawn wrong gets a follow-up in the **same chat**, naming the
+      canvas, board and what is missing; repeat until lint and the board check
+      pass.
+   5. Close the tab you opened.
+6. **Browser tools down: fix them, do not fall back to a pasted prompt.**
+   - Tools deferred: load them with ToolSearch. Only
+     `enable__mcp__claude-in-chrome` present: call it first.
+   - "Extension not connected", or no answer: tell the user to open Chrome and
+     connect the Claude extension, then retry once they say it is up.
+   - Extension not installed: with the user's yes (a download), have them
+     install **Claude** (Anthropic) from the Chrome Web Store, sign in and
+     connect it. Claude never signs in or types a password for them.
+   - Chrome not usable at all: with the user's yes, add a Playwright MCP
+     (`claude mcp add playwright -- npx @playwright/mcp@<pinned version>`). The
+     user signs in to claude.ai once in the browser it opens; then drive the
+     chat the same way.
+   - Only when the user declines every route: give them the one line to send,
+     and say that the demand waits until it is sent.
+7. The next sync's lint says whether it was met; when nothing is owed, write
    the file again saying so (or ask the user whether to delete it).
 
 **`demand_mode: "write"`** adds one thing: an **attribute** fix (an attribute

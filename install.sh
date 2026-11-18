@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 # Install or update the design-changes skill for every project on this machine.
 #
-#   curl -fsSL https://raw.githubusercontent.com/elmo365/design-changes-skill/v4.0.0/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/elmo365/design-changes-skill/v5.0.1/install.sh | sh
 #   ./install.sh [project-path]          # from a checkout; a path also sets a project up
 #
 # Installs one release: the tag in DESIGN_CHANGES_REF, by default this script's
@@ -10,7 +10,7 @@
 # optionally a project's config and first map.
 set -eu
 REPO="${DESIGN_CHANGES_REPO:-https://github.com/elmo365/design-changes-skill.git}"
-REF="${DESIGN_CHANGES_REF:-v4.0.0}"
+REF="${DESIGN_CHANGES_REF:-v5.0.1}"
 TARGET="$HOME/.claude/skills/design-changes"
 PROJECT="${1:-}"
 
@@ -30,8 +30,10 @@ fi
 echo '2/4 Playwright and Chromium'
 (cd "$TARGET" && npm install --no-audit --no-fund)
 
-echo '3/4 claude-design MCP'
-if ! command -v claude >/dev/null 2>&1; then
+echo '3/4 claude-design MCP (legacy: only for a design still on standalone Claude Design, which closes 2026-12-14)'
+if [ "$(date -u +%Y%m%d)" -ge 20261214 ]; then
+  echo '    skipped - standalone Claude Design has closed; designs are claude.ai artifacts read with the Artifact tool'
+elif ! command -v claude >/dev/null 2>&1; then
   echo '    claude CLI not on PATH. Register it yourself:'
   echo '    claude mcp add --transport http -s user claude-design https://api.anthropic.com/v1/design/mcp'
 elif claude mcp get claude-design >/dev/null 2>&1; then

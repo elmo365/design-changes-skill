@@ -1,19 +1,20 @@
 # Install or update the design-changes skill for every project on this machine.
 #
-#   irm https://raw.githubusercontent.com/elmo365/design-changes-skill/v4.0.0/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/elmo365/design-changes-skill/v5.0.1/install.ps1 | iex
 #   .\install.ps1 [-Project <path>] [-Ref <tag>]   # from a checkout; -Project also sets a project up
 #
 # Installs one release: the tag in $Ref (this script's own release by default;
 # $env:DESIGN_CHANGES_REF overrides it, e.g. 'main' for the development head).
 # 1. The skill goes to ~/.claude/skills/design-changes, checked out at that tag.
 # 2. Its own Playwright, pixelmatch and pngjs, and Chromium.
-# 3. The claude-design MCP, registered for the user if it is not already.
+# 3. The legacy claude-design MCP, registered if not already - before 14 Dec 2026
+#    only (standalone Claude Design closes then; designs are claude.ai artifacts).
 # 4. With -Project: design-changes.json written there, and the map built if
 #    the design is already mirrored. The first sync itself runs inside Claude
 #    Code (the MCP is only reachable from a session): ask "set up design-changes".
 param(
   [string]$Project = '',
-  [string]$Ref = $(if ($env:DESIGN_CHANGES_REF) { $env:DESIGN_CHANGES_REF } else { 'v4.0.0' }),
+  [string]$Ref = $(if ($env:DESIGN_CHANGES_REF) { $env:DESIGN_CHANGES_REF } else { 'v5.0.1' }),
   [string]$Repo = 'https://github.com/elmo365/design-changes-skill.git'
 )
 # Native tools write progress to stderr; Windows PowerShell 5.1 would treat
@@ -38,9 +39,11 @@ Write-Host '2/4 Playwright and Chromium'
 Push-Location $target
 try { npm install --no-audit --no-fund; Check 'npm install' } finally { Pop-Location }
 
-Write-Host '3/4 claude-design MCP'
+Write-Host '3/4 claude-design MCP (legacy: only for a design still on standalone Claude Design, which closes 2026-12-14)'
 $claude = Get-Command claude -ErrorAction SilentlyContinue
-if (-not $claude) {
+if ((Get-Date).ToUniversalTime() -ge [datetime]'2026-12-14') {
+  Write-Host '    skipped - standalone Claude Design has closed; designs are claude.ai artifacts read with the Artifact tool'
+} elseif (-not $claude) {
   Write-Warning 'The claude CLI is not on PATH. Register the MCP yourself: claude mcp add --transport http -s user claude-design https://api.anthropic.com/v1/design/mcp'
 } else {
   claude mcp get claude-design *> $null

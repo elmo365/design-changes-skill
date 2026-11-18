@@ -19,6 +19,12 @@ export const DEFAULTS = {
   // can say which project the repo is paired to.
   project_id: null,
   project_name: null,
+  // Standalone Claude Design closes 14 Dec 2026: a project moves to claude.ai as a "Migrated Design" artifact,
+  // whose files are its published files under `artifact_root`. Set: the design is read and written through
+  // the Artifact tool (`dc paths`, `dc import`); the claude-design MCP is not used. Unset with a project_id:
+  // the project is still on standalone Claude Design and must be moved (`dc migrate` says how).
+  artifact_url: null,
+  artifact_root: 'project/',
   // Where the mirrored design lives, relative to the root.
   design_dir: 'design',
   // A canvas: one HTML file of artboards, each an element with this attribute.

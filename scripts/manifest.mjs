@@ -28,7 +28,21 @@ const MANIFEST = join(DESIGN, 'manifest.json');
 
 /** Was the manifest recorded from a different project than the config pairs now? */
 export function rePaired(manifest, cfg = CONFIG) {
+  // Moving a standalone project into its own artifact keeps project_id and adds artifact_url: not a re-pairing.
+  // Two different artifacts are.
+  if (manifest?.artifact_url && cfg.artifact_url && manifest.artifact_url !== cfg.artifact_url) return true;
   return Boolean(manifest?.project_id && cfg.project_id && manifest.project_id !== cfg.project_id);
+}
+
+/** A listing made by `dc import` from an artifact read: its etags are the content's sha256. */
+export const fromArtifact = (listing) => listing.length > 0 && listing.every((f) => String(f.etag ?? '').startsWith('sha256:'));
+
+/** Did a file stay as it was? An artifact etag is the content's sha256, compared with the sha256 recorded for the
+ *  local copy (so the first artifact sync after an MCP-era manifest does not read every file as changed). */
+export function sameFile(was, f) {
+  const e = String(f.etag ?? '');
+  if (e.startsWith('sha256:')) return was.etag === e || (was.sha256 != null && was.sha256 === e.slice(7));
+  return was.etag === f.etag;
 }
 
 export const rePairNotice = (manifest, cfg = CONFIG) =>
@@ -54,12 +68,18 @@ export default async function run(mode, listingPath) {
       }
     }
     const files = {};
+    // An artifact listing holds only the files that were read: files the manifest knows but this sync did not
+    // read, and that are not mirrored, are kept as they were rather than dropped.
+    if (fromArtifact(listing)) {
+      for (const [k, v] of Object.entries(manifest.files ?? {})) if (!v.local) files[k] = v;
+    }
     for (const f of listing) {
       const local = localPath(f.path);
       const abs = local && join(DESIGN, local);
       files[f.path] = { local, size: f.size, etag: f.etag, sha256: abs && existsSync(abs) ? sha(abs) : null };
     }
-    writeFileSync(MANIFEST, `${JSON.stringify({ recorded: new Date().toISOString(), project_id: CONFIG.project_id, project_name: CONFIG.project_name, files }, null, 2)}\n`);
+    writeFileSync(MANIFEST, `${JSON.stringify({ recorded: new Date().toISOString(), project_id: CONFIG.project_id, project_name: CONFIG.project_name,
+      ...(CONFIG.artifact_url ? { artifact_url: CONFIG.artifact_url } : {}), files }, null, 2)}\n`);
     const absent = Object.entries(files).filter(([, v]) => v.local && !v.sha256).map(([k]) => k);
     console.log(`manifest.json: ${Object.keys(files).length} files recorded${absent.length ? `; NOT LOCAL: ${absent.join(', ')}` : ''}`);
     if (moved) {
@@ -72,17 +92,21 @@ export default async function run(mode, listingPath) {
   if (moved) console.log(rePairNotice(manifest));
   const out = { CHANGED: [], NEW: [], GONE: [], 'LOCAL-EDIT': [] };
   const seen = new Set();
+  const artifact = fromArtifact(listing);
   for (const f of listing) {
     seen.add(f.path);
     const was = manifest.files[f.path];
     if (!was) { out.NEW.push(`${f.path} (${f.size} B)`); continue; }
-    if (was.etag !== f.etag) out.CHANGED.push(`${f.path} → ${was.local ?? '(not mirrored)'} (${was.size} → ${f.size} B)`);
-    if (was.local && was.sha256) {
-      const abs = join(DESIGN, was.local);
-      if (!existsSync(abs) || sha(abs) !== was.sha256) out['LOCAL-EDIT'].push(was.local);
-    }
+    const abs = was.local && join(DESIGN, was.local);
+    const localSha = abs && existsSync(abs) ? sha(abs) : null;
+    // An artifact file whose content already equals the local copy is in step both ways: a local edit that was
+    // published to the design (or a design change already pulled) — neither CHANGED nor LOCAL-EDIT.
+    if (artifact && localSha && `sha256:${localSha}` === f.etag) continue;
+    if (!sameFile(was, f)) out.CHANGED.push(`${f.path} → ${was.local ?? '(not mirrored)'} (${was.size} → ${f.size} B)`);
+    if (was.local && was.sha256 && localSha !== was.sha256) out['LOCAL-EDIT'].push(was.local);
   }
-  for (const k of Object.keys(manifest.files)) if (!seen.has(k)) out.GONE.push(k);
+  // An artifact read covers the mirrored files (and the page list): an unmirrored file it did not read is not gone.
+  for (const [k, v] of Object.entries(manifest.files)) if (!seen.has(k) && !(artifact && !v.local)) out.GONE.push(k);
   let total = 0;
   for (const [kind, list] of Object.entries(out)) {
     if (!list.length) continue;

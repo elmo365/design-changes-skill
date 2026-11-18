@@ -1,6 +1,6 @@
 ---
 name: design-changes
-description: Mirror a Claude Design project into a repo, hold the design to the structure the skill requires (artboards, board ids, a device per board — its frame or a declared one) and demand fixes from the design side as a file written into the design project through the claude-design MCP when it falls short, then sending it in the design chat itself through Claude in Chrome and driving it until it is met, find exactly what changed — which files, which boards, which copy and style, how it looks (Playwright), and which code it affects — keep a board↔code map made by discovery with the code-discovery skill and claude-context (verified links in SCREEN-LINKS.json, re-checked every run; code comments are never the map), and vet a built screen against its board (app screenshot beside the rendered artboard, copy checklist). Standing rules travel with every use — a board is a static mockup, code is fluid at every width (unless the board itself is fluid, then port its fluid rules); board values are placeholders, code shows real data only. Use at the start of any design-facing session, whenever the design is said to have moved, before building or ticking a screen against an artboard, after building one (mark it built against its board), and in UI testing to vet screens against the design. First run in a project sets it up through the claude-design MCP.
+description: Mirror a design into a repo — a claude.ai "Migrated Design" artifact read and written with the Artifact tool (standalone Claude Design closes 14 Dec 2026; a project still there is told how to move, `dc migrate`) — hold the design to the structure the skill requires (artboards, board ids, a device per board — its frame or a declared one) and demand fixes from the design side as a file published into the design artifact when it falls short, then sending it in the artifact's own chat through Claude in Chrome and driving it until it is met, find exactly what changed — which files, which boards, which copy and style, how it looks (Playwright), and which code it affects — keep a board↔code map made by discovery with the code-discovery skill and claude-context (verified links in SCREEN-LINKS.json, re-checked every run; code comments are never the map), and vet a built screen against its board (app screenshot beside the rendered artboard, copy checklist). Standing rules travel with every use — a board is a static mockup, code is fluid at every width (unless the board itself is fluid, then port its fluid rules); board values are placeholders, code shows real data only. Use at the start of any design-facing session, whenever the design is said to have moved, before building or ticking a screen against an artboard, after building one (mark it built against its board), and in UI testing to vet screens against the design. First run in a project sets it up: the user selects the design artifact from the Artifact tool's list.
 ---
 
 # design-changes — what moved in the design, and what it touches in code
@@ -51,7 +51,7 @@ The narrowing runs in layers; Playwright comes last because it brings vision,
 not narrowing:
 
 0. **Lint** — the design meets the requirements below (`dc lint`)
-1. **Files** — which project files moved (the MCP's etags against `manifest.json`)
+1. **Files** — which project files moved (each file's sha256 as read from the artifact, against `manifest.json`)
 2. **Boards** — which artboards were added, removed or changed
 3. **Inside** — copy added and removed; style changes paired old → new, minor ones set aside
 4. **Picture** — only the changed boards, old against new, pixel regions
@@ -66,19 +66,38 @@ node "$HOME/.claude/skills/design-changes/scripts/dc.mjs" <command> …
 Below, `dc` means that line. `dc help` lists every command; `dc version` says
 which release is installed.
 
-## The design project — the MCP, and only the MCP
+## The design project — a claude.ai artifact, through the Artifact tool
 
-Read the design **only** through the `claude-design` MCP (`list_projects`,
-`list_files`, `render_preview`, `read_file`, `list_comments`); write to it only
-as *Demands* below says. Its tools may be deferred: load them with ToolSearch
-(`select:mcp__claude-design__list_files,…`). If they are missing entirely, the
-server is not registered — run the skill's installer, or
-`claude mcp add --transport http -s user claude-design https://api.anthropic.com/v1/design/mcp`,
-then restart Claude Code.
+**Standalone Claude Design (claude.ai/design) closes on 14 December 2026**, and
+the `claude-design` MCP stops with it. A project moves to claude.ai as a
+**"Migrated Design" artifact**: its files become the artifact's published files
+under `project/` (`artifact_root`), and `project/compat.json` lists its pages
+and carries the move's `report` (what it could not carry, such as an image
+hotlinked from another site, which artifacts block).
 
-A `render_preview` serve URL carries a project-scoped token. **Never write it
-to a file, a message, or a commit** — pass it to `dc fetch` by environment
-variable only.
+- **Still on standalone** (`project_id` set, no `artifact_url`): every sync
+  command prints `⚠ MIGRATE` until it moves. `dc migrate` prints the steps: in
+  the user's own Chrome, claude.ai/design → *Move all projects* → review →
+  confirm → wait for *All N moved*, then find the artifact (Artifact tool,
+  `list`), check `compat.json`'s report, and write `artifact_url`. The move is
+  the owner's act and one-way (the standalone copy turns read-only; chats and
+  comments do not move): ask once in the turn if the user has not asked for it.
+  Until it moves, the legacy MCP route (`dc fetch`, below) still works.
+- **On an artifact** (`artifact_url` set): read it with the Artifact tool's
+  `read` — `paths` (several published paths) and `out_dir` (a folder in the
+  repo, git-ignored or deleted after) — and write to it only as *Demands* says,
+  by `publish` with that `url`. The tool has no etags: a file's own sha256 is
+  its version, and `dc compare` matches it against the sha the manifest
+  recorded for the local copy, so the first sync after the move does not read
+  every file as changed.
+- **Publishing back** needs a whole-artifact `read` (url only) first in the
+  session — a publish against a version not viewed is refused — and a `root`
+  **inside the working directory** holding `project/…` at the served paths:
+  `file_path` the page (`project/compat.json` keeps it a Migrated Design),
+  `files` only the files you changed. Files left out are kept.
+
+What the artifact serves is what was published — no injected preview script and
+no C2PA block — so `dc import` copies bytes as read and only verifies them.
 
 ## Required of the design side
 
@@ -153,17 +172,15 @@ next `dc lint` then delivers cleanly.
 
 ### The route: a file in the design project
 
-What reaches Claude Design's agent is **a file in its project** — it reads the
-project's files from any chat. Two other routes look available and are not:
+What reaches the design agent is **a file in the design** — the agent is
+Claude in the artifact's own chat, and it reads the artifact's files. On an
+artifact the file is published there; on standalone (until it moves) it was
+written through the MCP. Two other routes look available and are not:
 
-- **A chat posted from here** (`put_conversation`) is a *synced* chat:
-  read-only in Claude Design — nobody can reply or send in it — and the
-  design agent in the user's own chats cannot see it. Never use it for a
-  demand, and never tell the user to "open the chat and say apply".
-- **Editing a canvas from here** replaces the whole file: the MCP has no
-  patch, `write_files` takes the content inline only (`local_path` is not
-  implemented), so a 30-character fix to a 400 KB canvas means sending all
-  400 KB back, typed out, where one wrong byte damages the design.
+- **A chat posted from here** (standalone's `put_conversation`) is a *synced*
+  chat: read-only, unseen by the design agent. Never use it for a demand.
+- **Redrawing from here** is the design side's call (structure, naming, ids);
+  Claude Code only ever writes what `demand_mode: "write"` allows, below.
 
 Delivering a demand:
 
@@ -173,13 +190,15 @@ Delivering a demand:
    and board named as the design names them (the project's file names, not
    local renames), and what is *not* needed. Change nothing beyond what lint
    found.
-2. `get_claude_design_prompt(project_id)` — required once before any write.
-3. `finalize_plan(project_id, writes: ["DEMAND-<repo_name>.md"])` — the write
-   boundary; it prompts the user and returns a `plan_token` and `base_etags`
-   (`"0"` for a new file). `write_files` without a plan token is refused.
-4. `write_files(project_id, plan_token, files: [{path, data, if_match}])`.
-   A correction inside the token's ~15 minutes reuses it with the new etag.
-5. **Send it yourself, in the browser, and drive it until it is met** (owner,
+2. **Publish it into the artifact** (*The design project*, "Publishing back"):
+   Artifact `read` with the url alone, then `publish` with `url`, `root` a repo
+   folder holding `project/compat.json` and `project/DEMAND-<repo_name>.md`,
+   `file_path` the compat.json, `files` `{"project/DEMAND-<repo_name>.md": …}`.
+   Read it back (`read`, `path`) and compare its sha with what you wrote.
+   *Standalone, until it moves:* `get_claude_design_prompt` once, then
+   `finalize_plan(project_id, writes: [...])` → `write_files(project_id,
+   plan_token, files: [{path, data, if_match}])`.
+3. **Send it yourself, in the browser, and drive it until it is met** (owner,
    22 Oct 2026: send the demand file, then open Chrome and drive the design
    chat; never hand the user a prompt to paste). The design agent does nothing
    until someone sends it the line, so Claude Code sends it through **Claude in
@@ -187,11 +206,15 @@ Delivering a demand:
    1. Load the browser tools in **one** ToolSearch call (`tabs_context_mcp`,
       `tabs_create_mcp`, `navigate`, `computer`, `find`, `read_page`,
       `tabs_close_mcp`); call `tabs_context_mcp` first and work in a new tab.
-   2. Open the project (`open_url` from `render_preview`, or
-      `https://claude.ai/design/p/<project_id>`), find the chat box and send:
-      *"Read DEMAND-<repo_name>.md in this project and apply it."*
+   2. Open the artifact (`artifact_url`) and press **Chat** at the top right:
+      it opens a claude.ai chat bound to the artifact
+      (`claude.ai/chat/<id>?artifact=<uuid>`, canvas beside it; verified
+      18 Nov 2026). Send: *"Read project/DEMAND-<repo_name>.md in this
+      artifact and apply it."* (Standalone, until it moves:
+      `https://claude.ai/design/p/<project_id>` and its chat box.)
    3. **Stay with it.** Watch the chat (a screenshot every few minutes) and the
-      canvas etags (`list_files`). When the agent stops to ask, answer from the
+      canvas itself (an Artifact `read` of the canvas path: its sha moves when
+      the agent saves). When the agent stops to ask, answer from the
       demand's own text. When it asks what the demand does not settle (a design
       choice beyond it, the user's usage limit, spending their quota), ask the
       user in this session (interview-me), then answer in the chat for them.
@@ -201,7 +224,7 @@ Delivering a demand:
       canvas, board and what is missing; repeat until lint and the board check
       pass.
    5. Close the tab you opened.
-6. **Browser tools down: fix them, do not fall back to a pasted prompt.**
+4. **Browser tools down: fix them, do not fall back to a pasted prompt.**
    - Tools deferred: load them with ToolSearch. Only
      `enable__mcp__claude-in-chrome` present: call it first.
    - "Extension not connected", or no answer: tell the user to open Chrome and
@@ -215,15 +238,17 @@ Delivering a demand:
      chat the same way.
    - Only when the user declines every route: give them the one line to send,
      and say that the demand waits until it is sent.
-7. The next sync's lint says whether it was met; when nothing is owed, write
+5. The next sync's lint says whether it was met; when nothing is owed, publish
    the file again saying so (or ask the user whether to delete it).
 
 **`demand_mode: "write"`** adds one thing: an **attribute** fix (an attribute
-or caption text on an existing element) on a canvas small enough to send whole
-may be written by Claude Code — after the user approves each exact edit (old →
-new), with `read_file` for the bytes and etag, the same `finalize_plan` →
-`write_files`, and a `read_file` afterwards compared byte for byte with what
-was meant. Structure and naming — splitting an element, closing markup, which
+or caption text on an existing element) may be written by Claude Code — after
+the user approves each exact edit (old → new). On an artifact there is no size
+limit any more (a publish sends a file from disk, not typed inline): edit the
+just-read copy in the repo folder with Edit, publish it through `files`, then
+`read` it back and compare its sha with the edited file. On standalone it is
+`read_file` → `finalize_plan` → `write_files` → `read_file`, canvases small
+enough to send whole only. Structure and naming — splitting an element, closing markup, which
 label or id a board gets — are the design side's call, always in the file.
 
 A board that fails lint is still diffed and mirrored — the history must not
@@ -231,12 +256,14 @@ stop — but code is not built or marked against it until it passes.
 
 ## Pairing — the user selects the project, always
 
-A repo is **paired** to exactly one Claude Design project: `project_id` and
-`project_name` in `design-changes.json`, committed. Pairing is the **user's
-act**, never the agent's guess:
+A repo is **paired** to exactly one design: `artifact_url` (and, for a moved
+project, the old `project_id`) and `project_name` in `design-changes.json`,
+committed. Pairing is the **user's act**, never the agent's guess:
 
-1. On first run (or whenever `project_id` is null), call the MCP's
-   `list_projects` and put **every** project to the user by name — even when
+1. On first run (or whenever neither `artifact_url` nor `project_id` is set),
+   list the user's artifacts (Artifact tool, `action: "list"`; a migrated
+   project keeps its name and its `project/compat.json` names the standalone
+   project it came from) and put **every** candidate to the user by name — even when
    only one exists, or the evidence looks conclusive. Where an old mirror
    exists, say per project how well its files match (name and size); that
    evidence **annotates the choices, it never substitutes for the selection**.
@@ -247,12 +274,15 @@ act**, never the agent's guess:
    **asked as an interactive question in the same turn** (the question
    prompt, with the projects as options) — never parked in a document, a
    posted chat, or a "let me know" at the end of a message.
-3. Write `project_id` AND `project_name`.
-3. `dc compare` / `fetch` / `record` refuse to run unpaired, and every run
-   prints `project: <name> (<id>)` so a wrong pairing is seen, not suffered.
+3. Write `artifact_url` AND `project_name` (keep `project_id` when the design
+   came from standalone: the manifest's history is keyed on it).
+4. `dc compare` / `paths` / `import` / `record` refuse to run unpaired, and every run
+   prints `project: <name> (<artifact url or id>)` so a wrong pairing is seen, not suffered.
    A first sync has no manifest to scream GONE, so the printed name is the
    only guard there — read it back to the user before fetching.
-4. Re-pairing (the design moved to a new project) is the same procedure. The
+5. Re-pairing (the design moved to a new project) is the same procedure.
+   **Moving from standalone to its own Migrated Design is not a re-pairing**:
+   add `artifact_url`, keep `project_id`; the manifest and marks carry over. The
    manifest remembers which project it was recorded from: the next
    `dc compare` opens with `RE-PAIRED` and lists every file as CHANGED/GONE —
    expected, say so — and `dc record` then retires what described the old
@@ -299,8 +329,9 @@ full sync is the sync below run once per pairing.
 
 When the project has no `design-changes.json` at its root:
 
-1. `dc init`, then **pair** (above): `list_projects` → the user selects →
-   set `project_id` and `project_name`.
+1. `dc init`, then **pair** (above): Artifact `list` → the user selects →
+   set `artifact_url` and `project_name`. (A design still on standalone:
+   `dc migrate` first.)
 2. Look at the code before filling the rest in, then set:
    - `design_dir` — where the mirror lives (default `design`);
    - `code_roots` — the folders that hold screens (e.g. `["app/lib", "backend"]`);
@@ -320,25 +351,39 @@ When the project has no `design-changes.json` at its root:
 
 ## The sync — every step, every run
 
-### 1. What moved (MCP)
+### 1. What moved (Artifact read + script)
 
-1. `list_files(project_id, depth: -1)`. Save the result **exactly as returned**
-   to the scratchpad as `listing.json`.
-2. `dc compare listing.json` — CHANGED, NEW, GONE, and LOCAL-EDIT (a local copy
-   someone edited by hand: resolve it before fetching, because a resync
-   overwrites it).
-3. If nothing moved, skip to step 6 — the map is still regenerated.
+1. `dc paths` prints the artifact paths to read — `project/compat.json` and
+   every mirrored file — as JSON arrays (200 per array). `--all` adds the files
+   the manifest knows but does not mirror.
+2. Artifact `read` with `url` = `artifact_url`, `paths` = each array, and
+   `out_dir` = one folder **in the repo** (e.g. `.design-fetch`, git-ignored or
+   deleted after the sync). `paths` takes only `url`, `paths`, `out_dir` — no
+   `prompt`. The files land at `<out_dir>/project/…`.
+3. `dc import --from <out_dir>` writes `<out_dir>/listing.json` (each file's
+   size and `sha256:` etag) and names **new pages** — pages in `compat.json`
+   the manifest never saw and the mirror would keep. Read those too (another
+   `read`), then import again.
+4. `dc compare <out_dir>/listing.json` — CHANGED, NEW, GONE, and LOCAL-EDIT (a
+   local copy edited since the last sync whose content the artifact does not
+   already have). A file whose local copy already equals the artifact's is in
+   step and not listed. An unmirrored file the read skipped is not GONE.
+5. If nothing moved, skip to step 6 — the map is still regenerated.
 
-### 2. Fetch, byte-exact (MCP + script)
+### 2. Write into the mirror, byte-exact (script)
 
-1. **One** `render_preview(project_id, <any path>)` — its token serves every file
-   in the project for about an hour.
-2. `DESIGN_SERVE_URL='<serve_url>' dc fetch --listing listing.json --changed --missing`
-   - text: the preview server's injected style and script are stripped;
-   - images: the C2PA provenance block the server adds to uploads and some JPGs
-     is stripped; a truncated download is refused;
-   - **nothing is written unless its final size equals the listed size.**
-   In PowerShell: `$env:DESIGN_SERVE_URL='<serve_url>'; dc fetch …; Remove-Item Env:DESIGN_SERVE_URL`.
+`dc import --from <out_dir> --write` copies each mirrored file into
+`design_dir` and verifies its sha against what was read. **A LOCAL-EDIT is
+held back** (exit 1, listed `HELD`): diff it against the read copy; if the
+design lacks something the local copy has, publish that to the artifact first
+(*Demands*, write); then `--overwrite-local`.
+
+*Standalone, until it moves:* `list_files(project_id, depth: -1)` saved as
+returned → `dc compare listing.json` → one `render_preview` → 
+`DESIGN_SERVE_URL='<serve_url>' dc fetch --listing listing.json --changed --missing`
+(strips the preview server's injected script and image C2PA, refuses a short
+download). The serve URL carries a token: **never write it to a file, a
+message or a commit** — environment variable only.
 
 ### 3. Lint — the design against the requirements
 
@@ -382,7 +427,8 @@ links it; a **changed** board's link is flagged *recheck*.
 
 ### 7. Record the sync
 
-1. `dc record listing.json`
+1. `dc record <out_dir>/listing.json` (standalone: `dc record listing.json`),
+   then delete `<out_dir>` — it is a read, not the mirror.
 2. Commit `design_dir` whole — canvases, support files, images, `manifest.json`,
    `SCREEN-LINKS.json`, `SCREEN-CODE-MAP.md`, `DEMAND.md` — in one commit, with
    the report's headline. An uncommitted resync loses the only "before" the next diff can
@@ -514,7 +560,9 @@ system — fix it, do not allow-list it.
 
 | Key | Meaning |
 |---|---|
-| `project_id`, `project_name` | the paired Claude Design project — set by the user's selection (*Pairing*), never by the agent alone |
+| `artifact_url` | the paired design artifact (`https://claude.ai/artifact/…`) — set by the user's selection (*Pairing*); set, the design is read with the Artifact tool (`dc paths` / `dc import`) |
+| `artifact_root` | the folder the design's files are published under in the artifact (`project/`) |
+| `project_id`, `project_name` | the standalone Claude Design project it came from (kept after the move: the manifest is keyed on it), and the design's name. `project_id` with no `artifact_url` = still on standalone: `⚠ MIGRATE` until it moves (`dc migrate`) |
 | `repo_name` | this repo's name on demands and chats posted to the project (default: the root folder's name) |
 | `owns` | globs on local canvas names this repo builds; the rest is reference — diffed, never demanded, marked or counted unbuilt here (null: all) |
 | `keep` | globs on paths under `design_dir` allowed besides the mirror and the skill's own; anything else is a foreign-file warning |

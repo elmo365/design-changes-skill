@@ -4,6 +4,21 @@ Releases are git tags; `dc version` prints the installed one. Versions follow
 semver: a change to what the skill requires of a design, or to how a config is
 read, is a major version.
 
+## v5.0.1 — 2026-11-18
+
+⚠ **Never install the `v5.0.0` tag**: it was pushed by mistake onto the v4.5.0 commit (a release commit that failed while the tag was still created) and is v4.5.0 code. v5.0.1 is the release described below; the installers pin it.
+
+**The design lives in a claude.ai artifact.** Standalone Claude Design closes on 14 Dec 2026 and the `claude-design` MCP stops with it; a project moves to claude.ai as a "Migrated Design" artifact (files under `project/`, page list and move report in `project/compat.json`).
+
+- New config keys `artifact_url` and `artifact_root` (`project/`). Set: the design is read with the Artifact tool and written by publishing into it. `project_id` stays as the history key; moving into its own artifact is not a re-pairing (two different artifacts are).
+- `dc migrate` — for a pairing still on standalone (`project_id`, no `artifact_url`): the browser steps of the move (claude.ai/design › Move all projects › confirm › All N moved), how to find and check the artifact, and how to switch the config. Every sync command prints `⚠ MIGRATE` until it moves.
+- `dc paths` — the artifact paths to read (compat.json plus every mirrored file), as JSON arrays for one Artifact `read` each.
+- `dc import --from <out_dir> [--write [--overwrite-local]]` — turns an Artifact read's folder into `listing.json` (sha256 etags), names new pages from compat.json the mirror would keep, and with `--write` copies byte-exact into `design_dir`, holding back local copies edited since the last sync.
+- `dc compare` on an artifact listing: a file matches when its sha equals the recorded local copy's (no etags on artifacts, and the first sync after the move reads clean); a file whose local copy already equals the artifact's is in step, neither CHANGED nor LOCAL-EDIT; an unmirrored file the read skipped is not GONE. `dc record` keeps those entries and stamps `artifact_url`.
+- `dc fetch` refuses on an artifact (no serve URL); `paths`/`import` refuse on standalone.
+- Demands are published into the artifact (`project/DEMAND-<repo>.md`) and sent in the artifact's own chat (its **Chat** button opens `claude.ai/chat/<id>?artifact=<uuid>`, checked 18 Nov 2026). `demand_mode: "write"` loses its size limit: an approved fix is edited on disk and published, then read back and compared.
+- Proven on b2b-desktop's migrated design: 69 files read, 8 changed canvases and assets found, local edits already published reported as in step.
+
 ## v4.5.0 — 2026-10-22
 
 **Demands are sent and driven by Claude Code in the browser** (owner, 22 Oct 2026). After the demand file is written, Claude Code opens the design project in the user's Chrome (Claude in Chrome), sends "Read DEMAND-<repo>.md in this project and apply it." itself, answers the design agent's questions from the demand (asking the user only what the demand does not settle), checks every demanded item on its board after the sync, and follows up in the same chat until lint and the board check pass. Broken browser tools are fixed (load or enable the tools, have the extension connected or installed with the user's yes, or add a Playwright MCP); handing the user the line to paste is the last resort, only when they decline every route.

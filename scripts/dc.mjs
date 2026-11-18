@@ -13,9 +13,14 @@ import { CONFIG, CONFIG_FILE, DEFAULTS, HAS_CONFIG, ROOT, SKILL } from './lib/co
 const HELP = `design-changes — what moved in the design, and what it touches in code
 
   init                         write design-changes.json for this project
-  compare <listing.json>       which project files moved (etags vs manifest)
+  migrate                      a project still on standalone Claude Design (closes 14 Dec 2026): how to move it
+  paths [--all]                the artifact files to read (JSON arrays for the Artifact tool's read)
+  import --from <out_dir> [--write [--overwrite-local]]
+                               an Artifact read's folder → <out_dir>/listing.json; --write copies into design_dir
+                               (local edits since the last sync are held unless --overwrite-local)
+  compare <listing.json>       which project files moved (etags, or sha256 for an artifact, vs manifest)
   fetch --listing <l.json> [--changed] [--missing] [--only <path>…]
-                               byte-exact fetch (DESIGN_SERVE_URL in the env)
+                               standalone Claude Design only: byte-exact fetch (DESIGN_SERVE_URL in the env)
   fetch --listing <l.json> --fix-local
                                strip C2PA from local images
   images [--sheet <out.png>]   changed images: decode, pixel-compare, contact sheet
@@ -72,23 +77,39 @@ async function main() {
     if (HAS_CONFIG) { console.log(`${CONFIG_FILE} already exists.`); return 0; }
     const { node_modules_from, ...starter } = DEFAULTS;
     writeFileSync(CONFIG_FILE, `${JSON.stringify({ ...starter, project_id: null, project_name: null }, null, 2)}\n`);
-    console.log(`Wrote ${CONFIG_FILE}. Pair it first: list the claude-design MCP's projects, have the user SELECT one, then set project_id and project_name. Then set design_dir, code_roots and screens.`);
+    console.log(`Wrote ${CONFIG_FILE}. Pair it first: list the user's artifacts (Artifact tool, action "list"), have the user SELECT the design, then set artifact_url and project_name (a project still on standalone Claude Design: \`dc migrate\`). Then set design_dir, code_roots and screens.`);
     return 0;
   }
   if (!HAS_CONFIG) console.error(`(no design-changes.json in ${ROOT} — using defaults; \`dc init\` writes one)`);
   // The commands that talk about the server refuse to run unpaired. Pairing is
   // the user's act: the agent lists the MCP's projects and the user selects —
   // never pinned from evidence alone (SKILL.md, "Pairing").
-  const paired = typeof CONFIG.project_id === 'string' && /^[0-9a-f-]{16,}$/i.test(CONFIG.project_id);
-  if (['compare', 'record', 'fetch'].includes(cmd)) {
+  const artifact = typeof CONFIG.artifact_url === 'string' && /^https:\/\/claude\.ai\/(code\/)?artifact\//.test(CONFIG.artifact_url);
+  const paired = artifact || (typeof CONFIG.project_id === 'string' && /^[0-9a-f-]{16,}$/i.test(CONFIG.project_id));
+  if (cmd === 'migrate') return (await import('./migrate.mjs')).default();
+  if (['compare', 'record', 'fetch', 'paths', 'import', 'lint', 'diff'].includes(cmd)) {
+    const { onStandalone, migrationNotice } = await import('./migrate.mjs');
+    if (onStandalone()) console.error(migrationNotice());
+  }
+  if (['compare', 'record', 'fetch', 'paths', 'import'].includes(cmd)) {
     if (!paired) {
-      console.error(`Not paired: project_id in ${CONFIG_FILE} is ${JSON.stringify(CONFIG.project_id)}.`);
-      console.error('First run: list the projects through the claude-design MCP, have the USER select one, write project_id and project_name, then run this again.');
+      console.error(`Not paired: neither artifact_url nor project_id is set in ${CONFIG_FILE}.`);
+      console.error('First run: list the user\'s artifacts (Artifact tool, action "list"), have the USER select the design, write artifact_url and project_name, then run this again.');
       return 2;
     }
-    console.error(`project: ${CONFIG.project_name ?? '(unnamed — set project_name)'} (${CONFIG.project_id})`);
+    if (cmd === 'fetch' && artifact) {
+      console.error('This design is a claude.ai artifact: there is no serve URL. Read it with the Artifact tool and `dc import` (`dc paths` lists what to read).');
+      return 2;
+    }
+    if (['paths', 'import'].includes(cmd) && !artifact) {
+      console.error(`No artifact_url in ${CONFIG_FILE}: the design is still on standalone Claude Design. \`dc migrate\` first.`);
+      return 2;
+    }
+    console.error(`project: ${CONFIG.project_name ?? '(unnamed — set project_name)'} (${artifact ? CONFIG.artifact_url : CONFIG.project_id})`);
   }
   switch (cmd) {
+    case 'paths': { const { paths } = await import('./import.mjs'); return paths(); }
+    case 'import': return (await import('./import.mjs')).default();
     case 'compare': case 'record': return (await import('./manifest.mjs')).default(cmd, args[0]);
     case 'fetch': return (await import('./fetch.mjs')).default();
     case 'images': return (await import('./images.mjs')).default();
